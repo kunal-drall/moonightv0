@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+target/
+dist/
+.next/
+out/
+
+# Environment
+.env
+.env.local
+.env.production
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Turbo
+.turbo/
+
+# Starknet
+deployments/*.json
+!deployments/.gitkeep
+
+# Cairo
+packages/contracts/target/
+
+# Debug
+*.log
+npm-debug.log*
+
+# Test
+coverage/
+.nyc_output/
+
+# Project internal docs (not for public repo)
+MOONIGHT_PROJECT_GUIDE.md
+Moonight_Protocol_Technical_PRD.docx
+
+# Claude
+.claude/
