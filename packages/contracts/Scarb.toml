@@ -1,0 +1,22 @@
+[package]
+name = "moonight"
+version = "0.1.0"
+edition = "2024_07"
+cairo-version = "2.9.2"
+
+[dependencies]
+starknet = "2.9.2"
+openzeppelin_token = { git = "https://github.com/OpenZeppelin/cairo-contracts.git", tag = "v0.20.0" }
+openzeppelin_access = { git = "https://github.com/OpenZeppelin/cairo-contracts.git", tag = "v0.20.0" }
+openzeppelin_security = { git = "https://github.com/OpenZeppelin/cairo-contracts.git", tag = "v0.20.0" }
+openzeppelin_introspection = { git = "https://github.com/OpenZeppelin/cairo-contracts.git", tag = "v0.20.0" }
+openzeppelin_upgrades = { git = "https://github.com/OpenZeppelin/cairo-contracts.git", tag = "v0.20.0" }
+
+[dev-dependencies]
+cairo_test = "2.9.2"
+# Enable snforge_std on CI with 16GB+ RAM:
+# snforge_std = { git = "https://github.com/foundry-rs/starknet-foundry.git", tag = "v0.35.0" }
+
+[[target.starknet-contract]]
+sierra = true
+casm = true
