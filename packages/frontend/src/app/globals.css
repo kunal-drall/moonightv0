@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-primary: #2563eb;
+    --color-accent: #f59e0b;
+    --color-bg: #0f172a;
+    --color-surface: #1e293b;
+    --color-surface-elevated: #334155;
+    --color-border: #334155;
+    --color-text-primary: #f8fafc;
+    --color-text-secondary: #94a3b8;
+    --color-text-muted: #64748b;
+    --color-success: #22c55e;
+    --color-warning: #f59e0b;
+    --color-danger: #ef4444;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-dark-900 text-dark-50 antialiased;
+    background-image: radial-gradient(
+      ellipse at center top,
+      rgba(37, 99, 235, 0.08) 0%,
+      transparent 50%
+    );
+    background-attachment: fixed;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-dark-900;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-dark-600 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-dark-500;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-dark-800/60 backdrop-blur-sm border border-dark-700/50 rounded-2xl p-6;
+  }
+
+  .card-hover {
+    @apply card transition-all duration-300 hover:border-primary-500/30 hover:shadow-lg hover:shadow-primary-500/5;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center px-6 py-3 rounded-xl
+      bg-primary-600 text-white font-semibold
+      hover:bg-primary-500 active:bg-primary-700
+      transition-all duration-200
+      disabled:opacity-50 disabled:cursor-not-allowed
+      focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:ring-offset-2 focus:ring-offset-dark-900;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center px-6 py-3 rounded-xl
+      bg-dark-700/80 text-dark-100 font-semibold border border-dark-600/50
+      hover:bg-dark-600/80 hover:border-dark-500/50 active:bg-dark-700
+      transition-all duration-200
+      disabled:opacity-50 disabled:cursor-not-allowed
+      focus:outline-none focus:ring-2 focus:ring-dark-500/50 focus:ring-offset-2 focus:ring-offset-dark-900;
+  }
+
+  .btn-accent {
+    @apply inline-flex items-center justify-center px-6 py-3 rounded-xl
+      bg-accent-500 text-dark-900 font-semibold
+      hover:bg-accent-400 active:bg-accent-600
+      transition-all duration-200
+      disabled:opacity-50 disabled:cursor-not-allowed
+      focus:outline-none focus:ring-2 focus:ring-accent-500/50 focus:ring-offset-2 focus:ring-offset-dark-900;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-3 rounded-xl
+      bg-dark-800 border border-dark-600/50 text-dark-50
+      placeholder:text-dark-500
+      focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500/50
+      transition-all duration-200;
+  }
+
+  .gradient-text {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary-400 to-accent-400;
+  }
+
+  .glow-primary {
+    box-shadow: 0 0 40px rgba(37, 99, 235, 0.15);
+  }
+
+  .glow-accent {
+    box-shadow: 0 0 40px rgba(245, 158, 11, 0.15);
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
