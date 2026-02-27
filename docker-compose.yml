@@ -1,0 +1,53 @@
+version: "3.8"
+
+services:
+  frontend:
+    build:
+      context: ./packages/frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_STARKNET_NETWORK=${STARKNET_NETWORK:-sepolia}
+      - NEXT_PUBLIC_CDP_MANAGER_ADDRESS=${CDP_MANAGER_ADDRESS:-0x0}
+      - NEXT_PUBLIC_MOONUSD_ADDRESS=${MOONUSD_ADDRESS:-0x0}
+      - NEXT_PUBLIC_PRICE_ORACLE_ADDRESS=${PRICE_ORACLE_ADDRESS:-0x0}
+      - NEXT_PUBLIC_STABILITY_POOL_ADDRESS=${STABILITY_POOL_ADDRESS:-0x0}
+      - NEXT_PUBLIC_VAULT_A_ADDRESS=${VAULT_A_ADDRESS:-0x0}
+      - NEXT_PUBLIC_VAULT_C_ADDRESS=${VAULT_C_ADDRESS:-0x0}
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./packages/backend
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - STARKNET_RPC_URL=${STARKNET_RPC_URL:-https://starknet-sepolia.public.blastapi.io/rpc/v0_7}
+      - STARKNET_NETWORK=${STARKNET_NETWORK:-sepolia}
+      - KEEPER_PRIVATE_KEY=${KEEPER_PRIVATE_KEY}
+      - KEEPER_ADDRESS=${KEEPER_ADDRESS}
+      - CDP_MANAGER_ADDRESS=${CDP_MANAGER_ADDRESS:-0x0}
+      - MOONUSD_ADDRESS=${MOONUSD_ADDRESS:-0x0}
+      - PRICE_ORACLE_ADDRESS=${PRICE_ORACLE_ADDRESS:-0x0}
+      - STABILITY_POOL_ADDRESS=${STABILITY_POOL_ADDRESS:-0x0}
+      - REDEMPTION_MANAGER_ADDRESS=${REDEMPTION_MANAGER_ADDRESS:-0x0}
+      - VAULT_A_ADDRESS=${VAULT_A_ADDRESS:-0x0}
+      - VAULT_C_ADDRESS=${VAULT_C_ADDRESS:-0x0}
+      - PROTOCOL_CONFIG_ADDRESS=${PROTOCOL_CONFIG_ADDRESS:-0x0}
+      - RAIN_API_KEY=${RAIN_API_KEY}
+      - RAIN_BASE_URL=${RAIN_BASE_URL:-https://sandbox.rain.xyz/v1}
+      - RAIN_WEBHOOK_SECRET=${RAIN_WEBHOOK_SECRET}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      - DATABASE_PATH=/app/data/moonight.db
+    volumes:
+      - backend-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  backend-data:
