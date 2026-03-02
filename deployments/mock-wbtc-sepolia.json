@@ -1,0 +1,9 @@
+{
+  "network": "sepolia",
+  "timestamp": "2026-03-02T16:59:30.332Z",
+  "deployer": "0x026Da42139758c07F1680e96cCecc2b93637a42C0cb489436f63a8c5FD96495d",
+  "contract": "MockWBTC",
+  "classHash": "0x52a46d64f84781e9421fb01492c4d67722d83dcd77c850265d2df85c67ff989",
+  "address": "0x36d37b606dc22e3bd466f9b9950c0437eeb10f0e93bdda3c29eff7cf79014d8",
+  "txHash": "0x2c5c6cbd2d16faa5f1817cc8b5aab62dd31c5811b1d691e7bf270c9d26be4ff"
+}
