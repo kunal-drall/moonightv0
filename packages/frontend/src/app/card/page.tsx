@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAccount } from "@starknet-react/core";
 import {
   CreditCardIcon,
@@ -15,10 +15,16 @@ import {
   BoltIcon,
   LockClosedIcon,
   SparklesIcon,
+  TicketIcon,
 } from "@heroicons/react/24/outline";
 import StatsCard from "@/components/StatsCard";
 
 const isMainnet = process.env.NEXT_PUBLIC_STARKNET_NETWORK === "mainnet";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+
+function getInviteStorageKey(address: string) {
+  return `moonight_invite_${address}`;
+}
 
 type CardTab = "debit" | "credit";
 type TopupSource = "wallet" | "vault-c";
@@ -82,7 +88,7 @@ const statusStyles = {
 };
 
 export default function CardPage() {
-  const { isConnected } = useAccount();
+  const { address, isConnected } = useAccount();
   const [activeTab, setActiveTab] = useState<CardTab>("debit");
   const [topupAmount, setTopupAmount] = useState("");
   const [topupSource, setTopupSource] = useState<TopupSource>("wallet");
@@ -90,6 +96,52 @@ export default function CardPage() {
   const [autoTopupThreshold, setAutoTopupThreshold] = useState("50");
   const [autoTopupAmount, setAutoTopupAmount] = useState("200");
   const [showKYC, setShowKYC] = useState(false);
+
+  // Invite code gating state
+  const [inviteVerified, setInviteVerified] = useState(false);
+  const [inviteCode, setInviteCode] = useState("");
+  const [inviteError, setInviteError] = useState("");
+  const [inviteLoading, setInviteLoading] = useState(false);
+
+  // Check localStorage for previously verified invite code
+  useEffect(() => {
+    if (address) {
+      const stored = localStorage.getItem(getInviteStorageKey(address));
+      if (stored === "true") {
+        setInviteVerified(true);
+      } else {
+        setInviteVerified(false);
+      }
+    } else {
+      setInviteVerified(false);
+    }
+  }, [address]);
+
+  const handleVerifyInvite = useCallback(async () => {
+    if (!inviteCode.trim() || !address) return;
+    setInviteLoading(true);
+    setInviteError("");
+
+    try {
+      const res = await fetch(`${API_BASE}/api/card/validate-invite`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: inviteCode.trim(), walletAddress: address }),
+      });
+      const data = await res.json();
+
+      if (res.ok && data.valid) {
+        setInviteVerified(true);
+        localStorage.setItem(getInviteStorageKey(address), "true");
+      } else {
+        setInviteError(data.error || "Invalid invite code");
+      }
+    } catch {
+      setInviteError("Failed to validate invite code. Please try again.");
+    } finally {
+      setInviteLoading(false);
+    }
+  }, [inviteCode, address]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
@@ -223,8 +275,86 @@ export default function CardPage() {
                 </div>
               </div>
 
-              {/* KYC / Card Issuance */}
-              {!showKYC ? (
+              {/* Invite Code Gate → KYC / Card Issuance */}
+              {!inviteVerified ? (
+                <div className="card">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-accent-500/10 border border-accent-500/20 flex items-center justify-center">
+                      <TicketIcon className="w-5 h-5 text-accent-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-semibold text-dark-100">
+                        Invite Only Access
+                      </h3>
+                      <p className="text-xs text-dark-400">
+                        Enter your invite code to unlock the Moonight Card
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-dark-400 mb-4 leading-relaxed">
+                    The Moonight Card is currently in early access. Enter an
+                    invite code shared via our Discord or Telegram community to
+                    proceed with KYC and card issuance.
+                  </p>
+                  <div className="space-y-3">
+                    <div className="flex items-center bg-dark-900/50 rounded-xl border border-dark-600/50 focus-within:border-primary-500/50 transition-all">
+                      <TicketIcon className="w-4 h-4 text-dark-500 ml-4" />
+                      <input
+                        type="text"
+                        value={inviteCode}
+                        onChange={(e) => {
+                          setInviteCode(e.target.value.toUpperCase());
+                          setInviteError("");
+                        }}
+                        onKeyDown={(e) => { if (e.key === "Enter") handleVerifyInvite(); }}
+                        placeholder="MOON-XXXX-XXXX"
+                        className="flex-1 bg-transparent px-3 py-3 text-sm font-mono font-medium text-dark-50 placeholder:text-dark-600 focus:outline-none tracking-wider"
+                        disabled={!isConnected}
+                      />
+                    </div>
+                    {inviteError && (
+                      <p className="text-xs text-red-400 flex items-center gap-1.5">
+                        <ExclamationTriangleIcon className="w-3.5 h-3.5" />
+                        {inviteError}
+                      </p>
+                    )}
+                    <button
+                      onClick={handleVerifyInvite}
+                      disabled={!isConnected || !inviteCode.trim() || inviteLoading}
+                      className="btn-primary text-sm w-full"
+                    >
+                      {!isConnected
+                        ? "Connect Wallet First"
+                        : inviteLoading
+                        ? "Verifying..."
+                        : "Verify Invite Code"}
+                    </button>
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-dark-700/30">
+                    <p className="text-xs text-dark-500 leading-relaxed">
+                      Don&apos;t have a code? Join our{" "}
+                      <a
+                        href="https://discord.gg/cZa7YpyQ"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary-400 hover:text-primary-300 transition-colors"
+                      >
+                        Discord
+                      </a>{" "}
+                      or{" "}
+                      <a
+                        href="https://t.me/moonight"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary-400 hover:text-primary-300 transition-colors"
+                      >
+                        Telegram
+                      </a>{" "}
+                      to request early access.
+                    </p>
+                  </div>
+                </div>
+              ) : !showKYC ? (
                 <div className="card">
                   <h3 className="text-base font-semibold text-dark-100 mb-3">
                     Get Your Card
