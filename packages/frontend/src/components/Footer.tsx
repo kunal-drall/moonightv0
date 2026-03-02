@@ -31,7 +31,7 @@ const socialLinks = [
   { label: "Twitter", href: "https://twitter.com/moonightprotocol" },
   { label: "Telegram", href: "https://t.me/moonightprotocol" },
   { label: "GitHub", href: "https://github.com/moonightprotocol" },
-  { label: "Discord", href: "https://discord.gg/moonight" },
+  { label: "Discord", href: "https://discord.gg/cZa7YpyQ" },
 ];
 
 export default function Footer() {

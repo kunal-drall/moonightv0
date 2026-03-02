@@ -10,7 +10,7 @@ const config: DocsThemeConfig = {
     link: "https://github.com/kunal-drall/moonightv0",
   },
   chat: {
-    link: "https://discord.gg/moonight",
+    link: "https://discord.gg/cZa7YpyQ",
   },
   docsRepositoryBase:
     "https://github.com/kunal-drall/moonightv0/tree/main/packages/docs",

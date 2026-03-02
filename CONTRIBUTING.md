@@ -303,6 +303,6 @@ Looking for something to work on? Here are areas where we welcome contributions:
 
 - Open a [Discussion](https://github.com/kunal-drall/moonightv0/discussions) for general questions
 - Open an [Issue](https://github.com/kunal-drall/moonightv0/issues) for bugs or feature requests
-- Join our [Discord](https://discord.gg/moonight) for real-time chat
+- Join our [Discord](https://discord.gg/cZa7YpyQ) for real-time chat
 
 Thank you for helping build the future of BTC DeFi on Starknet.
