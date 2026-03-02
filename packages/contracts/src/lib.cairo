@@ -27,6 +27,7 @@ pub mod interfaces {
 // Token contracts
 pub mod token {
     pub mod moonusd;
+    pub mod mock_wbtc;
 }
 
 // CDP engine
