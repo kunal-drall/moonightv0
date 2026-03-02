@@ -10,7 +10,6 @@ env:
   SCARB_VERSION: "2.9.2"
   SNFORGE_VERSION: "0.35.0"
   NODE_VERSION: "20"
-  PNPM_VERSION: "10"
 
 jobs:
   contracts-build:
@@ -77,6 +76,10 @@ jobs:
       - name: Enable snforge_std
         run: |
           sed -i 's/# snforge_std/snforge_std/' Scarb.toml
+          # Add snforge test target to avoid conflicts with inline #[cfg(test)] tests
+          echo '' >> Scarb.toml
+          echo '[[test]]' >> Scarb.toml
+          echo 'test-type = "integration"' >> Scarb.toml
 
       - name: Run integration tests
         run: snforge test
@@ -89,8 +92,6 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -118,8 +119,6 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -141,8 +140,6 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
