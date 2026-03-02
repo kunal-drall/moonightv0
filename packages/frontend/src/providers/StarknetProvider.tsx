@@ -5,7 +5,7 @@ import { sepolia, mainnet } from "@starknet-react/chains";
 import {
   StarknetConfig,
   publicProvider,
-  argent,
+  ready,
   braavos,
   useInjectedConnectors,
 } from "@starknet-react/core";
@@ -15,9 +15,9 @@ const chain = isMainnet ? mainnet : sepolia;
 
 function StarknetProviderInner({ children }: { children: React.ReactNode }) {
   const { connectors } = useInjectedConnectors({
-    recommended: [argent(), braavos()],
-    includeRecommended: "onlyIfNoConnectors",
-    order: "alphabetical",
+    recommended: [ready(), braavos()],
+    includeRecommended: "always",
+    order: "random",
   });
 
   return (

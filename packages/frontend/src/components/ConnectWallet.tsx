@@ -2,6 +2,7 @@
 
 import { useAccount, useConnect, useDisconnect } from "@starknet-react/core";
 import { useState, useRef, useEffect } from "react";
+import Image from "next/image";
 import {
   WalletIcon,
   ChevronDownIcon,
@@ -14,6 +15,15 @@ function truncateAddress(address: string): string {
   if (!address) return "";
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
+
+const WALLET_META: Record<string, { label: string }> = {
+  ready: { label: "Ready Wallet for Starknet" },
+  argentX: { label: "Ready Wallet for Starknet" },
+  braavos: { label: "Smart wallet for Starknet" },
+  keplr: { label: "Multi-chain wallet" },
+  okxwallet: { label: "OKX Web3 wallet" },
+  bitget: { label: "Bitget Web3 wallet" },
+};
 
 export default function ConnectWallet() {
   const { address, isConnected } = useAccount();
@@ -119,7 +129,7 @@ export default function ConnectWallet() {
               Choose a wallet to connect to Moonight
             </p>
           </div>
-          <div className="p-2">
+          <div className="p-2 max-h-80 overflow-y-auto">
             {connectors.map((connector) => (
               <button
                 key={connector.id}
@@ -129,19 +139,29 @@ export default function ConnectWallet() {
                 }}
                 className="w-full flex items-center space-x-3 px-3 py-3 rounded-lg hover:bg-dark-700/50 transition-colors text-left group"
               >
-                <div className="w-10 h-10 rounded-xl bg-dark-700 flex items-center justify-center border border-dark-600/50 group-hover:border-primary-500/30 transition-colors">
-                  <WalletIcon className="w-5 h-5 text-dark-300" />
+                <div className="w-10 h-10 rounded-xl bg-dark-700 flex items-center justify-center border border-dark-600/50 group-hover:border-primary-500/30 transition-colors overflow-hidden shrink-0">
+                  {connector.icon ? (
+                    <Image
+                      src={
+                        typeof connector.icon === "string"
+                          ? connector.icon
+                          : connector.icon.dark ?? connector.icon.light
+                      }
+                      alt={connector.name}
+                      width={28}
+                      height={28}
+                      className="rounded-lg"
+                    />
+                  ) : (
+                    <WalletIcon className="w-5 h-5 text-dark-300" />
+                  )}
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-dark-200 group-hover:text-dark-50 transition-colors">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-dark-200 group-hover:text-dark-50 transition-colors truncate">
                     {connector.name}
                   </p>
-                  <p className="text-xs text-dark-500">
-                    {connector.id === "argentX"
-                      ? "Starknet wallet by Argent"
-                      : connector.id === "braavos"
-                        ? "Smart wallet for Starknet"
-                        : "Starknet wallet"}
+                  <p className="text-xs text-dark-500 truncate">
+                    {WALLET_META[connector.id]?.label ?? "Starknet wallet"}
                   </p>
                 </div>
               </button>
@@ -150,7 +170,7 @@ export default function ConnectWallet() {
               <div className="px-3 py-6 text-center">
                 <p className="text-sm text-dark-400">No wallets detected</p>
                 <p className="text-xs text-dark-500 mt-1">
-                  Install ArgentX or Braavos to continue
+                  Install Ready Wallet or Braavos to continue
                 </p>
               </div>
             )}
