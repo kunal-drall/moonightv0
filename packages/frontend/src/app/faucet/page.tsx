@@ -12,7 +12,7 @@ import {
   WalletIcon,
 } from "@heroicons/react/24/outline";
 import StatsCard from "@/components/StatsCard";
-import { CallData, uint256 } from "starknet";
+import { uint256 } from "starknet";
 
 const MOCK_WBTC_ADDRESS = process.env.NEXT_PUBLIC_MOCK_WBTC || "";
 const MOONUSD_ADDRESS = process.env.NEXT_PUBLIC_MOONUSD || "";
@@ -55,12 +55,12 @@ export default function FaucetPage() {
     setTxHash("");
 
     try {
-      const amount = uint256.bnToUint256(BigInt(selectedAmount.sats));
+      const amountU256 = uint256.bnToUint256(BigInt(selectedAmount.sats));
       const result = await sendAsync([
         {
           contractAddress: MOCK_WBTC_ADDRESS,
           entrypoint: "mint_to",
-          calldata: CallData.compile([address, amount]),
+          calldata: [address, amountU256.low.toString(), amountU256.high.toString()],
         },
       ]);
       setTxHash(result.transaction_hash);
