@@ -4,6 +4,7 @@ export const users = sqliteTable("users", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   walletAddress: text("wallet_address").notNull().unique(),
   rainCardholderId: text("rain_cardholder_id"),
+  inviteCode: text("invite_code"),
   kycStatus: text("kyc_status", { enum: ["none", "pending", "approved", "rejected"] })
     .notNull()
     .default("none"),
@@ -56,6 +57,17 @@ export const keeperEvents = sqliteTable("keeper_events", {
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),
+});
+
+export const inviteCodes = sqliteTable("invite_codes", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  code: text("code").notNull().unique(),
+  maxUses: integer("max_uses").notNull().default(1),
+  usesCount: integer("uses_count").notNull().default(0),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  expiresAt: integer("expires_at", { mode: "timestamp" }),
 });
 
 export const positions = sqliteTable("positions", {
