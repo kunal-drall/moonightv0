@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { useAccount, useContract, useSendTransaction } from "@starknet-react/core";
+import { useAccount } from "@starknet-react/core";
 import {
   BeakerIcon,
   CheckCircleIcon,
@@ -12,7 +12,7 @@ import {
   WalletIcon,
 } from "@heroicons/react/24/outline";
 import StatsCard from "@/components/StatsCard";
-import { uint256 } from "starknet";
+import { Contract, cairo } from "starknet";
 
 const MOCK_WBTC_ADDRESS = process.env.NEXT_PUBLIC_MOCK_WBTC || "";
 const MOONUSD_ADDRESS = process.env.NEXT_PUBLIC_MOONUSD || "";
@@ -27,49 +27,56 @@ const MINT_AMOUNTS = [
 
 const MOCK_WBTC_ABI = [
   {
-    type: "function",
-    name: "mint_to",
-    inputs: [
-      { name: "to", type: "core::starknet::contract_address::ContractAddress" },
-      { name: "amount", type: "core::integer::u256" },
+    type: "interface",
+    name: "mock_wbtc::mock_wbtc::IMockWBTC",
+    items: [
+      {
+        type: "function",
+        name: "mint_to",
+        inputs: [
+          { name: "to", type: "core::starknet::contract_address::ContractAddress" },
+          { name: "amount", type: "core::integer::u256" },
+        ],
+        outputs: [],
+        state_mutability: "external",
+      },
     ],
-    outputs: [],
-    state_mutability: "external",
+  },
+  {
+    type: "impl",
+    name: "MockWBTCImpl",
+    interface_name: "mock_wbtc::mock_wbtc::IMockWBTC",
   },
 ] as const;
 
 export default function FaucetPage() {
-  const { address, isConnected } = useAccount();
+  const { address, account, isConnected } = useAccount();
   const [selectedAmount, setSelectedAmount] = useState(MINT_AMOUNTS[2]); // default 1 WBTC
   const [txHash, setTxHash] = useState("");
   const [minting, setMinting] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState("");
 
-  const { sendAsync } = useSendTransaction({});
-
   const handleMint = useCallback(async () => {
-    if (!address || !MOCK_WBTC_ADDRESS) return;
+    if (!address || !account || !MOCK_WBTC_ADDRESS) return;
     setMinting(true);
     setError("");
     setTxHash("");
 
     try {
-      const amountU256 = uint256.bnToUint256(BigInt(selectedAmount.sats));
-      const result = await sendAsync([
-        {
-          contractAddress: MOCK_WBTC_ADDRESS,
-          entrypoint: "mint_to",
-          calldata: [address, amountU256.low.toString(), amountU256.high.toString()],
-        },
-      ]);
+      const wbtc = new Contract({ abi: MOCK_WBTC_ABI, address: MOCK_WBTC_ADDRESS, providerOrAccount: account });
+      const call = wbtc.populate("mint_to", {
+        to: address,
+        amount: cairo.uint256(BigInt(selectedAmount.sats)),
+      });
+      const result = await account.execute(call);
       setTxHash(result.transaction_hash);
     } catch (e: any) {
       setError(e?.message?.slice(0, 200) || "Transaction failed");
     } finally {
       setMinting(false);
     }
-  }, [address, selectedAmount, sendAsync]);
+  }, [address, account, selectedAmount]);
 
   const handleAddToWallet = useCallback(async () => {
     if (!MOCK_WBTC_ADDRESS) return;
