@@ -1,0 +1,88 @@
+# Getting Started
+
+## Prerequisites
+
+| Tool | Version | Purpose |
+|------|---------|---------|
+| [Scarb](https://docs.swmansion.com/scarb/) | 2.9.2 | Cairo build tool |
+| [Starknet Foundry](https://foundry-rs.github.io/starknet-foundry/) | 0.35.0 | Contract testing |
+| [Node.js](https://nodejs.org/) | 20+ | Frontend & backend |
+| [pnpm](https://pnpm.io/) | 10+ | Package manager |
+
+## Quick Install
+
+```bash
+# Install Scarb and Starknet Foundry
+bash scripts/install-tools.sh
+
+# Install Node.js dependencies
+pnpm install
+```
+
+## Repository Structure
+
+```
+moonightv0/
+├── packages/
+│   ├── contracts/          # Cairo smart contracts (33 source files)
+│   │   ├── src/
+│   │   │   ├── interfaces/ # Contract trait definitions
+│   │   │   ├── math/       # Fixed-point arithmetic, exp, softmax
+│   │   │   ├── token/      # moonUSD (ERC-20), PositionNFT (ERC-721)
+│   │   │   ├── cdp/        # CDPManager, interest accrual, collateral config
+│   │   │   ├── pool/       # StabilityPool, RedemptionManager
+│   │   │   ├── oracle/     # PriceOracle (Pragma wrapper)
+│   │   │   ├── vault/      # Vault A, B, C, D
+│   │   │   ├── config/     # ProtocolConfig
+│   │   │   └── test_utils/ # Mock contracts for testing
+│   │   └── tests/          # Integration tests (snforge)
+│   ├── frontend/           # Next.js 14 + starknet-react
+│   ├── backend/            # Express + keeper bots + card API
+│   ├── landing/            # Marketing site (moonight.fun)
+│   └── docs/               # This documentation site
+├── scripts/                # Deploy, test, setup scripts
+└── deployments/            # Contract addresses per network
+```
+
+## Build Everything
+
+```bash
+# Contracts
+cd packages/contracts && scarb build
+
+# Frontend
+pnpm --filter @moonight/frontend build
+
+# Backend
+pnpm --filter @moonight/backend build
+
+# Docs
+pnpm --filter @moonight/docs build
+```
+
+## Run Locally
+
+```bash
+# Frontend (port 3000)
+pnpm --filter @moonight/frontend dev
+
+# Landing page (port 3002)
+pnpm --filter @moonight/landing dev
+
+# Docs (port 3003)
+pnpm --filter @moonight/docs dev
+```
+
+## Deployed Contracts (Sepolia)
+
+| Contract | Address |
+|----------|---------|
+| MoonUSD | `0x4f939a71...ada6e484` |
+| PositionNFT | `0x2750ea20...9d01e1` |
+| PriceOracle | `0x381e4748...7a918a` |
+| CDPManager | `0x300a5714...dc1a982` |
+| StabilityPool | `0x56220005...67e3d4` |
+| RedemptionManager | `0x78e7d3ce...149ffb` |
+| ProtocolConfig | `0x0b49bd86...a3176` |
+
+All addresses are available in `deployments/sepolia-latest.json`.

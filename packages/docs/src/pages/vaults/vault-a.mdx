@@ -1,0 +1,75 @@
+# Vault A — Delta-Neutral Funding Rate
+
+**Risk**: Low | **Target APY**: 8-15% | **Entry**: BTC or USDC
+
+## Strategy
+
+Vault A captures funding rate arbitrage by holding equal and opposite perpetual futures positions, maintaining net-zero BTC exposure:
+
+1. **BTC deposit path**: Deposit BTC → open CDP at 60% LTV → mint moonUSD → swap to USDC → post as margin on Extended DEX → open equal long+short BTC perps
+2. **USDC deposit path**: Post USDC directly as margin → open equal long+short perps
+
+The vault earns the funding rate spread (positive funding = shorts pay longs) with no directional risk.
+
+## Key Mechanics
+
+### Direction Flipping
+When funding rate turns negative for 3+ consecutive periods, the keeper calls `trigger_flip()` to reverse the long/short sides, ensuring the vault always collects positive funding.
+
+### Emergency Rebalance
+If delta drift exceeds 5% of notional (from partial liquidations or uneven funding), anyone can call `emergency_rebalance()` to restore delta neutrality.
+
+### NAV Calculation
+```
+NAV = margin_balance + unrealized_pnl + accrued_funding - outstanding_debt
+NAV per share = NAV / total_shares
+```
+
+## API Reference
+
+### User Functions
+
+```cairo
+fn deposit_btc(ref self: TContractState, amount: u256) -> u256  // returns shares
+fn deposit_usdc(ref self: TContractState, amount: u256) -> u256 // returns shares
+fn withdraw(ref self: TContractState, shares: u256)             // burns shares, returns assets
+```
+
+### Keeper Functions
+
+```cairo
+fn trigger_flip(ref self: TContractState)          // keeper-only: flip long/short
+fn emergency_rebalance(ref self: TContractState)   // permissionless: fix delta drift
+fn harvest_funding(ref self: TContractState)        // collect accrued funding
+```
+
+### Read Functions
+
+```cairo
+fn get_nav(self: @TContractState) -> u256
+fn get_nav_per_share(self: @TContractState) -> u256
+fn get_delta(self: @TContractState) -> u256       // should be ~0
+fn get_vault_stats(self: @TContractState) -> VaultAStats
+fn get_user_position(self: @TContractState, user: ContractAddress) -> UserVaultPosition
+```
+
+### VaultAStats
+
+```cairo
+struct VaultAStats {
+    total_shares: u256,
+    nav: u256,
+    nav_per_share: u256,
+    long_notional: u256,
+    short_notional: u256,
+    accrued_funding: u256,
+    current_direction: felt252,  // 'LONG_BIAS' or 'SHORT_BIAS'
+}
+```
+
+## Risks
+
+- **Funding rate reversal**: If rates stay negative longer than flip threshold, brief losses
+- **DEX counterparty risk**: Extended DEX solvency
+- **Smart contract risk**: CDP + DEX interaction surface
+- **Oracle failure**: Could affect CDP health during emergency

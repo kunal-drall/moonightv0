@@ -1,0 +1,99 @@
+# Architecture
+
+## System Overview
+
+```
+                    ┌─────────────┐
+                    │  Pragma     │
+                    │  Oracle     │
+                    └──────┬──────┘
+                           │
+┌──────────┐      ┌────────▼────────┐      ┌──────────────┐
+│  WBTC    │─────▶│  CDPManager     │─────▶│  moonUSD     │
+│  tBTC    │      │  (Core Engine)  │      │  (ERC-20)    │
+│  solvBTC │      └───┬────┬────┬───┘      └──────┬───────┘
+└──────────┘          │    │    │                  │
+                      │    │    │           ┌──────▼───────┐
+              ┌───────┘    │    └───────┐   │  Vault C     │
+              │            │            │   │  (ERC-4626)  │
+     ┌────────▼───┐  ┌─────▼──────┐ ┌──▼───┴──────┐       │
+     │ Stability  │  │ Redemption │ │ Position    │  ┌────▼─────┐
+     │ Pool       │  │ Manager    │ │ NFT (721)   │  │ moonight │
+     └────────────┘  └────────────┘ └─────────────┘  │ Card     │
+                                                      └──────────┘
+```
+
+## Contract Dependency Map
+
+| Contract | Depends On | Depended By |
+|----------|-----------|-------------|
+| **CDPManager** | MoonUSD, PositionNFT, PriceOracle, ProtocolConfig, StabilityPool, RedemptionManager | VaultA, VaultB |
+| **MoonUSD** | — | CDPManager (mint), StabilityPool (burn), RedemptionManager (burn) |
+| **PositionNFT** | — | CDPManager (mint/burn) |
+| **PriceOracle** | Pragma (external) | CDPManager, VaultA, VaultB, VaultD |
+| **StabilityPool** | MoonUSD | CDPManager (absorb), VaultC (deposit) |
+| **RedemptionManager** | MoonUSD, PriceOracle | CDPManager |
+| **ProtocolConfig** | — | CDPManager |
+| **VaultA** | CDPManager, MoonUSD, ExtendedDex, Ekubo | — |
+| **VaultC** | StabilityPool, MoonUSD, Ekubo | Card (withdraw) |
+
+## Access Control
+
+All contracts use OpenZeppelin's `OwnableComponent`. Critical cross-contract calls are restricted:
+
+```
+moonusd.mint()          → CDPManager only
+moonusd.burn()          → CDPManager, StabilityPool, RedemptionManager
+position_nft.mint()     → CDPManager only
+position_nft.burn()     → CDPManager only
+stability_pool.absorb() → CDPManager only
+redemption_manager.*()  → CDPManager only
+vault_a.trigger_flip()  → Keeper only
+vault_c.reallocate()    → Keeper or Owner
+```
+
+## Interest Rate Model
+
+Moonight uses a **borrower-set interest rate** model (inspired by Liquity V2):
+
+1. Borrowers choose their own rate within `[min_rate, max_rate]` (default 0.5%–15% APR)
+2. Lower rates are redeemed first — creating natural incentive to set competitive rates
+3. Interest accrues per-second: `debt_new = debt * (1 + rate/YEAR * dt)`
+4. Interest is distributed: 75% to Stability Pool depositors, 25% to treasury
+
+## Liquidation Flow
+
+```
+Position HF ≤ 1.0
+    │
+    ▼
+┌─ Stability Pool has enough moonUSD? ─┐
+│  YES                                   │  NO
+│  ▼                                     │  ▼
+│  SP absorbs debt                       │  Redistribution
+│  SP receives collateral (+ 10% bonus) │  across remaining
+│  P and S factors updated (O(1))        │  CDPs
+│  ▼                                     │  ▼
+└─ Position NFT burned ─────────────────┘
+```
+
+## Oracle Design
+
+The `PriceOracle` contract wraps [Pragma](https://pragma.build/) on Starknet:
+
+- **Primary feed**: `BTC/USD` median from Pragma aggregators
+- **TWAP**: Configurable window (default 15 minutes)
+- **Staleness check**: Prices older than 3600s trigger fallback
+- **Grace period**: 6 hours using last valid price
+- **Emergency mode**: After grace period, minting is suspended; liquidations continue with last valid price
+- **Recovery**: Owner calls `reset_emergency()` once oracle resumes
+
+## Math Libraries
+
+All financial calculations use 18-decimal fixed-point arithmetic:
+
+| Library | Functions |
+|---------|-----------|
+| `fixed_point` | `mul_fp`, `div_fp`, `from_bps`, `to_bps`, `normalize_price` |
+| `exp` | `exp_decay` — Taylor series 4-term approximation for baseRate decay |
+| `softmax` | `softmax_allocate` — power-weighted allocation with min/max clamping |

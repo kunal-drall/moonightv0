@@ -4,6 +4,7 @@
   "scripts": {
     "dev:frontend": "turbo run dev --filter=@moonight/frontend",
     "dev:backend": "turbo run dev --filter=@moonight/backend",
+    "dev:docs": "turbo run dev --filter=@moonight/docs",
     "build": "turbo run build",
     "test": "turbo run test",
     "test:contracts": "cd packages/contracts && snforge test",

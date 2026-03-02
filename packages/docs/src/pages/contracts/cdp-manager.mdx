@@ -1,0 +1,180 @@
+# CDPManager
+
+The CDPManager is the core engine of Moonight Protocol. It handles the full CDP lifecycle: opening positions, managing collateral and debt, interest accrual, and liquidations.
+
+**Address (Sepolia)**: `0x300a5714cc1bafe5e13297654739cc395703beb15701be71ffb9bf6cdc1a982`
+
+## Data Structures
+
+### PositionData
+
+```cairo
+struct PositionData {
+    collateral_type: felt252,    // e.g. 'WBTC'
+    collateral_amount: u256,     // 18 decimals
+    debt: u256,                  // moonUSD owed (18 decimals)
+    interest_rate: u256,         // annual rate (18 decimals, e.g. 0.05e18 = 5%)
+    last_update: u64,            // timestamp of last interest accrual
+    created_at: u64,             // position creation timestamp
+}
+```
+
+## Write Functions
+
+### `open_position`
+
+Opens a new CDP. Transfers collateral from caller, mints a PositionNFT, and mints moonUSD to the caller.
+
+```cairo
+fn open_position(
+    ref self: TContractState,
+    collateral_type: felt252,    // 'WBTC'
+    collateral_amount: u256,     // amount to deposit
+    debt_amount: u256,           // moonUSD to mint
+    interest_rate: u256,         // chosen annual rate
+) -> u256                        // returns position_id
+```
+
+**Requirements:**
+- `debt_amount >= min_debt` (default 100 moonUSD)
+- LTV ratio must not exceed `max_ltv` for the collateral type
+- `interest_rate` must be within `[min_rate, max_rate]`
+- Oracle price must be fresh (not stale)
+
+**Side effects:**
+- Deducts borrow fee (7 days of interest): 75% to Stability Pool, 25% to treasury
+- Inserts position into RedemptionManager sorted queue
+
+### `close_position`
+
+Repays all debt and returns collateral to the position owner.
+
+```cairo
+fn close_position(ref self: TContractState, position_id: u256)
+```
+
+### `deposit_collateral`
+
+Adds collateral to an existing position, improving its health factor.
+
+```cairo
+fn deposit_collateral(ref self: TContractState, position_id: u256, amount: u256)
+```
+
+### `withdraw_collateral`
+
+Removes collateral from a position. Fails if the resulting health factor would drop below `min_hf_after_withdrawal` (default 1.1).
+
+```cairo
+fn withdraw_collateral(ref self: TContractState, position_id: u256, amount: u256)
+```
+
+### `mint_more`
+
+Mints additional moonUSD against an existing position. Charges a borrow fee on the new debt.
+
+```cairo
+fn mint_more(ref self: TContractState, position_id: u256, amount: u256)
+```
+
+### `repay`
+
+Repays debt on an existing position. Burns the caller's moonUSD.
+
+```cairo
+fn repay(ref self: TContractState, position_id: u256, amount: u256)
+```
+
+### `set_rate`
+
+Changes the interest rate on a position. Rate decreases have a cooldown period (default 12 hours) to prevent gaming.
+
+```cairo
+fn set_rate(ref self: TContractState, position_id: u256, new_rate: u256)
+```
+
+### `liquidate`
+
+Liquidates a position with health factor ≤ 1.0.
+
+```cairo
+fn liquidate(ref self: TContractState, position_id: u256)
+```
+
+**Liquidation paths (in priority order):**
+1. **Stability Pool absorption** — SP burns moonUSD, receives collateral + 10% bonus
+2. **Redistribution** — debt and collateral spread across remaining positions
+
+### `add_collateral_type`
+
+Registers a new collateral token. Owner-only.
+
+```cairo
+fn add_collateral_type(
+    ref self: TContractState,
+    collateral_type: felt252,
+    token_address: ContractAddress,
+    max_ltv: u256,               // e.g. 0.8e18 = 80%
+    liquidation_bonus: u256,     // e.g. 0.1e18 = 10%
+)
+```
+
+## Read Functions
+
+### `get_position`
+
+```cairo
+fn get_position(self: @TContractState, position_id: u256) -> PositionData
+```
+
+### `get_health_factor`
+
+Returns the current health factor: `HF = (collateral * price * max_ltv) / debt`
+
+```cairo
+fn get_health_factor(self: @TContractState, position_id: u256) -> u256
+```
+
+### `get_current_debt`
+
+Returns debt with accrued interest up to the current timestamp.
+
+```cairo
+fn get_current_debt(self: @TContractState, position_id: u256) -> u256
+```
+
+### `get_market_average_rate`
+
+Weighted average interest rate across all active positions.
+
+```cairo
+fn get_market_average_rate(self: @TContractState) -> u256
+```
+
+### `get_borrow_fee`
+
+Calculates the upfront borrow fee for a given debt amount and rate.
+
+```cairo
+fn get_borrow_fee(self: @TContractState, debt_amount: u256, rate: u256) -> u256
+```
+
+### `get_total_debt` / `get_active_positions`
+
+```cairo
+fn get_total_debt(self: @TContractState) -> u256
+fn get_active_positions(self: @TContractState) -> u256
+```
+
+## Events
+
+| Event | Fields |
+|-------|--------|
+| `PositionOpened` | position_id, owner, collateral_type, collateral, debt, rate |
+| `PositionClosed` | position_id, owner |
+| `CollateralDeposited` | position_id, amount |
+| `CollateralWithdrawn` | position_id, amount |
+| `DebtMinted` | position_id, amount |
+| `DebtRepaid` | position_id, amount |
+| `RateChanged` | position_id, old_rate, new_rate |
+| `PositionLiquidated` | position_id, debt_absorbed, collateral_seized, method |

@@ -1,0 +1,110 @@
+# Deployment
+
+## Contract Deployment
+
+### Prerequisites
+
+- Scarb 2.9.2 installed
+- Funded deployer account on target network
+- Environment variables configured:
+
+```bash
+export STARKNET_RPC_URL=https://starknet-sepolia.public.blastapi.io
+export DEPLOYER_ADDRESS=0x...
+export DEPLOYER_PRIVATE_KEY=0x...
+```
+
+### Deploy to Sepolia
+
+```bash
+# Build contracts first
+cd packages/contracts && scarb build && cd ../..
+
+# Deploy all contracts
+pnpm tsx scripts/deploy-contracts.ts
+```
+
+The deployment script:
+1. Declares all contract classes
+2. Deploys contracts in dependency order
+3. Saves addresses to `deployments/sepolia-latest.json`
+
+### Wire Permissions
+
+After deployment, set up cross-contract permissions:
+
+```bash
+DEPLOYER_PRIVATE_KEY=0x... DEPLOYER_ADDRESS=0x... pnpm tsx scripts/wire-permissions.ts
+```
+
+This executes a multicall that:
+- Adds CDPManager as MoonUSD minter/burner
+- Sets CDPManager on PositionNFT, StabilityPool, RedemptionManager
+- Configures PriceOracle with Pragma address and asset keys
+- Sets max staleness to 3600 seconds
+
+### Deployment Order
+
+```
+1. MoonUSD (no deps)
+2. PositionNFT (no deps)
+3. PriceOracle (no deps)
+4. ProtocolConfig (no deps)
+5. StabilityPool (needs MoonUSD)
+6. RedemptionManager (needs MoonUSD, PriceOracle)
+7. CDPManager (needs all above)
+```
+
+## Frontend Deployment (Vercel)
+
+The frontend is deployed to Vercel as a Next.js app:
+
+```bash
+cd packages/frontend
+vercel --prod
+```
+
+### Environment Variables (Vercel Dashboard)
+
+```
+NEXT_PUBLIC_STARKNET_NETWORK=sepolia
+NEXT_PUBLIC_CDP_MANAGER=0x300a5714...
+NEXT_PUBLIC_MOONUSD=0x4f939a71...
+NEXT_PUBLIC_PRICE_ORACLE=0x381e4748...
+NEXT_PUBLIC_STABILITY_POOL=0x56220005...
+NEXT_PUBLIC_POSITION_NFT=0x2750ea20...
+NEXT_PUBLIC_REDEMPTION_MANAGER=0x78e7d3ce...
+NEXT_PUBLIC_PROTOCOL_CONFIG=0x0b49bd86...
+NEXT_PUBLIC_BACKEND_URL=https://api.sepolia.moonight.fun
+```
+
+## Backend Deployment (Docker)
+
+```bash
+cd packages/backend
+docker build -t moonight-backend .
+docker run -p 3001:3001 --env-file .env moonight-backend
+```
+
+Or using Docker Compose from the repo root:
+
+```bash
+docker compose up -d
+```
+
+## CI/CD Pipeline
+
+| Trigger | Action |
+|---------|--------|
+| Push to `main` (contracts changed) | Build + deploy to Sepolia |
+| Push to `main` (frontend changed) | Deploy to Vercel |
+| Pull request | Build + test all packages |
+
+## Current Deployment
+
+All contracts are deployed on **Starknet Sepolia**. Addresses are in `deployments/sepolia-latest.json`.
+
+View on Starkscan:
+- [MoonUSD](https://sepolia.starkscan.co/contract/0x4f939a71809aee6691bd05bce8c3dec1faf915633a70838a40f4f63ada6e484)
+- [CDPManager](https://sepolia.starkscan.co/contract/0x300a5714cc1bafe5e13297654739cc395703beb15701be71ffb9bf6cdc1a982)
+- [PriceOracle](https://sepolia.starkscan.co/contract/0x381e474889554290793fde095f133a4f6afdf7e128d0ccb5af7b855967a918a)

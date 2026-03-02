@@ -1,0 +1,107 @@
+# Development Setup
+
+## Prerequisites
+
+| Tool | Version | Install |
+|------|---------|---------|
+| Scarb | 2.9.2 | `curl --proto '=https' --tlsv1.2 -sSf https://docs.swmansion.com/scarb/install.sh \| sh -s -- -v 2.9.2` |
+| Starknet Foundry | 0.35.0 | `curl -L https://raw.githubusercontent.com/foundry-rs/starknet-foundry/master/scripts/install.sh \| sh && snfoundryup -v 0.35.0` |
+| Node.js | 20+ | [nodejs.org](https://nodejs.org/) |
+| pnpm | 10+ | `npm install -g pnpm` |
+
+Or use the install script:
+
+```bash
+bash scripts/install-tools.sh
+```
+
+## Clone & Install
+
+```bash
+git clone https://github.com/kunal-drall/moonightv0.git
+cd moonightv0
+pnpm install
+```
+
+## Project Structure
+
+```
+packages/
+├── contracts/     # Cairo 2.9.2 smart contracts
+│   ├── src/       # Source code (33 files)
+│   └── tests/     # Integration tests (7 files, 88 tests)
+├── frontend/      # Next.js 14 DeFi app (port 3000)
+├── backend/       # Express keeper bots + card API (port 3001)
+├── landing/       # Marketing site (port 3002)
+└── docs/          # Documentation (port 3003)
+```
+
+## Build Commands
+
+```bash
+# Build contracts
+cd packages/contracts && scarb build
+
+# Build all Node.js packages
+pnpm build
+
+# Build individual packages
+pnpm --filter @moonight/frontend build
+pnpm --filter @moonight/backend build
+pnpm --filter @moonight/docs build
+```
+
+## Dev Servers
+
+```bash
+# Start frontend dev server
+pnpm --filter @moonight/frontend dev
+
+# Start backend (with hot reload)
+pnpm --filter @moonight/backend dev
+
+# Start docs site
+pnpm --filter @moonight/docs dev
+```
+
+## Environment Variables
+
+Copy `.env.example` to `.env` and fill in the values:
+
+```bash
+cp .env.example .env
+```
+
+For frontend Sepolia testing, the contract addresses are pre-configured in `packages/frontend/.env.sepolia`.
+
+## Code Style
+
+### Cairo
+- Format with `scarb fmt`
+- Follow OpenZeppelin component patterns
+- All external functions must validate inputs
+- All state changes must emit events
+- Use `StoragePointerReadAccess` / `StoragePointerWriteAccess` for storage
+
+### TypeScript
+- Strict mode enabled
+- ESLint + TypeScript parser
+- Prefer `const` over `let`
+- Handle errors explicitly (no silent catches)
+
+## Commit Messages
+
+Follow [Conventional Commits](https://www.conventionalcommits.org/):
+
+```
+feat(contracts): add WBTC collateral type
+fix(oracle): handle stale price edge case
+test(cdp): add liquidation test for multi-collateral
+docs: update vault A strategy description
+```
+
+**Scopes**: `contracts`, `frontend`, `backend`, `vault`, `cdp`, `oracle`, `card`, `ci`
+
+## GPG Signing
+
+All commits must be GPG-signed. See [CONTRIBUTING.md](https://github.com/kunal-drall/moonightv0/blob/main/CONTRIBUTING.md#gpg-signing) for setup instructions.

@@ -1,0 +1,37 @@
+# Vault Strategies Overview
+
+Moonight offers four vault strategies with different risk/reward profiles, each designed to generate yield from BTC-backed positions.
+
+## Strategy Comparison
+
+| Vault | Strategy | Risk | Target APY | Entry Asset |
+|-------|----------|------|------------|-------------|
+| **[Vault A](/vaults/vault-a)** | Delta-neutral funding rate | Low | 8-15% | BTC or USDC |
+| **[Vault B](/vaults/vault-b)** | Leveraged BTC accumulation | High | 20-40%+ | BTC |
+| **[Vault C](/vaults/vault-c)** | Yield optimizer (ERC-4626) | Low-Med | 6-12% | moonUSD |
+| **[Vault D](/vaults/vault-d)** | Covered call + PT/YT | Medium | 12-25% | BTC |
+
+## How Vault Strategies Work
+
+### Vault A — Delta-Neutral
+Deposits BTC → opens CDP → takes equal long+short perp positions on Extended DEX. Earns the funding rate spread while maintaining zero directional exposure. Keeper flips direction when funding turns negative.
+
+### Vault B — Leveraged BTC Loop
+Deposits BTC → opens CDP → mints moonUSD → swaps to BTC → deposits more → repeats. Creates leveraged long BTC exposure (up to ~5x effective leverage at 80% LTV). Profits when BTC rises, amplified losses when it falls.
+
+### Vault C — Yield Optimizer
+Accepts moonUSD deposits → allocates across Stability Pool (interest + liquidation gains), Ekubo LP (swap fees), and lending protocols. Issues vmoonUSD shares (ERC-4626). Keeper compounds daily and reallocates weekly using softmax optimization.
+
+### Vault D — Covered Call + PT/YT
+Deposits BTC → writes covered call options for premium income → splits remaining yield into Principal Tokens (PT) and Yield Tokens (YT). PT holders get fixed yield at maturity, YT holders get variable upside.
+
+## Keeper Automation
+
+All vaults require off-chain keeper bots for periodic operations:
+
+| Vault | Keeper Action | Frequency |
+|-------|--------------|-----------|
+| A | `harvest_funding()`, `trigger_flip()` | 8 hours, on FR sign change |
+| B | `rebalance()`, `deleverage()` | On HF threshold, emergency |
+| C | `compound()`, `reallocate()` | Daily, weekly |
+| D | `settle_epoch()`, `write_options()` | Weekly, on expiry |

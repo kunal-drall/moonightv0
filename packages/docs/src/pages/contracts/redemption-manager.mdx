@@ -1,0 +1,74 @@
+# RedemptionManager
+
+The Redemption Manager maintains a sorted queue of CDP positions ordered by interest rate. It enables moonUSD holders to redeem their tokens for BTC collateral at the current oracle price, providing a hard price floor for moonUSD.
+
+**Address (Sepolia)**: `0x78e7d3ce5f606c66db587a4d38ce808e60973da2a1b61276dfd5bf89f149ffb`
+
+## How Redemptions Work
+
+1. Redeemer calls `redeem(moonusd_amount, collateral_type)`
+2. Manager traverses the sorted queue from head (lowest interest rate first)
+3. For each position: deducts debt, calculates collateral to return
+4. Redeemer receives collateral minus a redemption fee
+5. Affected borrowers keep their remaining collateral as compensation
+
+### Why Lowest Rate First?
+
+Borrowers who set lower interest rates accept higher redemption risk. This creates a natural market for interest rates — if you want redemption protection, set a higher rate.
+
+## Redemption Fee
+
+The fee uses an **exponential decay base rate** (inspired by Liquity):
+
+```
+baseRate_new = baseRate_old × e^(-0.5 × dt/hour) + 0.5 × redeemed_fraction
+fee = baseRate × collateral_value
+```
+
+- Base rate increases with each redemption and decays over time
+- Minimum fee: 0.5% (prevents free arbitrage)
+- Maximum fee: 5%
+
+## API Reference
+
+### `redeem`
+
+Redeem moonUSD for collateral. Burns the caller's moonUSD and transfers collateral.
+
+```cairo
+fn redeem(ref self: TContractState, amount: u256, collateral_type: felt252)
+```
+
+### Queue Management (CDPManager-only)
+
+```cairo
+// Insert a new position into the sorted queue
+fn insert(ref self: TContractState, position_id: u256, rate: u256)
+
+// Remove a position from the queue
+fn remove(ref self: TContractState, position_id: u256)
+
+// Re-insert after rate change (remove + insert at new position)
+fn re_insert(ref self: TContractState, position_id: u256, new_rate: u256)
+```
+
+### Read Functions
+
+```cairo
+fn get_redemption_fee(self: @TContractState, amount: u256) -> u256
+fn get_base_rate(self: @TContractState) -> u256
+fn get_sorted_head(self: @TContractState) -> u256        // position_id of lowest rate
+fn get_queue_size(self: @TContractState) -> u256
+```
+
+## Sorted List Implementation
+
+The queue is a **doubly-linked list** stored on-chain:
+
+```
+Head (lowest rate) ⟷ ... ⟷ ... ⟷ Tail (highest rate)
+```
+
+- Insert: O(n) worst case (walks list to find position), O(1) with hint
+- Remove: O(1) (pointer update)
+- Redemption traversal: O(k) where k = number of positions redeemed

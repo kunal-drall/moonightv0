@@ -1,0 +1,103 @@
+# StabilityPool
+
+The Stability Pool is the first line of defense for liquidations. Users deposit moonUSD to earn interest yield and receive collateral from liquidated positions at a discount.
+
+**Address (Sepolia)**: `0x5622000f5e62e1a09fe586b5d41c2c1c2b6cd0701eae9ed85118658ff67e3d4`
+
+## How It Works
+
+The pool uses a **Liquity-style O(1) accounting** system with two running variables:
+
+- **P** (product factor): Tracks moonUSD loss from liquidations. Each absorption multiplies P by `(1 - absorbed/total)`.
+- **S** (sum factor per collateral): Tracks collateral gains. Each absorption adds `collateral / total_deposits` to S.
+
+This means deposit balances and gains update in O(1) time regardless of how many liquidations occur.
+
+### Deposit Accounting
+
+```
+compounded_deposit = initial_deposit × (P_current / P_at_deposit)
+collateral_gain    = initial_deposit × (S_current - S_at_deposit)
+```
+
+When P drops below a threshold (1e-9), an **epoch reset** occurs to prevent underflow.
+
+## User Functions
+
+### `deposit`
+
+Deposit moonUSD into the Stability Pool.
+
+```cairo
+fn deposit(ref self: TContractState, amount: u256)
+```
+
+### `withdraw`
+
+Withdraw moonUSD from the pool (compounded balance).
+
+```cairo
+fn withdraw(ref self: TContractState, amount: u256)
+```
+
+### `claim_collateral_gains`
+
+Claim accumulated collateral from liquidations.
+
+```cairo
+fn claim_collateral_gains(ref self: TContractState, collateral_type: felt252)
+```
+
+### `claim_interest_yield`
+
+Claim accumulated interest distributions.
+
+```cairo
+fn claim_interest_yield(ref self: TContractState)
+```
+
+## CDPManager-Only Functions
+
+### `absorb_liquidation`
+
+Called by CDPManager during liquidation. Burns moonUSD from the pool and records collateral gain.
+
+```cairo
+fn absorb_liquidation(
+    ref self: TContractState,
+    collateral_type: felt252,
+    debt_to_absorb: u256,
+    collateral_to_receive: u256,
+)
+```
+
+### `distribute_interest`
+
+Distributes interest payments from CDPManager to depositors.
+
+```cairo
+fn distribute_interest(ref self: TContractState, amount: u256)
+```
+
+## Read Functions
+
+```cairo
+fn get_total_deposits(self: @TContractState) -> u256
+fn get_depositor_balance(self: @TContractState, depositor: ContractAddress) -> u256
+fn get_depositor_collateral_gain(
+    self: @TContractState, depositor: ContractAddress, collateral_type: felt252
+) -> u256
+fn get_compounded_deposit(self: @TContractState, depositor: ContractAddress) -> u256
+```
+
+## Yield Sources
+
+1. **Interest distributions** — 75% of CDP interest payments flow to SP depositors
+2. **Liquidation collateral** — BTC collateral received at ~110% of debt value (10% bonus)
+3. **Borrow fees** — 75% of upfront borrow fees
+
+## Risk
+
+- Deposited moonUSD is partially consumed during liquidations (replaced by collateral)
+- If BTC drops rapidly, collateral received may be worth less than moonUSD burned
+- Smart contract risk (mitigated by ReentrancyGuard + Pausable)

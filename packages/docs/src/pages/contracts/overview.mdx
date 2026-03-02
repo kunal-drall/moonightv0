@@ -1,0 +1,53 @@
+# Smart Contracts Overview
+
+Moonight Protocol consists of 11 Cairo smart contracts deployed on Starknet. All contracts use OpenZeppelin components for access control, pausability, and reentrancy protection.
+
+## Core Contracts
+
+| Contract | Purpose | Key OZ Components |
+|----------|---------|-------------------|
+| [CDPManager](/contracts/cdp-manager) | CDP lifecycle, liquidations, interest | Ownable, Pausable, ReentrancyGuard |
+| [MoonUSD](/contracts/moonusd) | ERC-20 stablecoin with role-based mint/burn | ERC20, Ownable, Pausable |
+| [PriceOracle](/contracts/price-oracle) | Pragma wrapper with TWAP + fallback | Ownable |
+| [StabilityPool](/contracts/stability-pool) | Liquidation absorption pool | Ownable, Pausable, ReentrancyGuard |
+| [RedemptionManager](/contracts/redemption-manager) | Sorted queue + redemption fee decay | Ownable |
+| PositionNFT | ERC-721 CDP ownership token | ERC721, Ownable |
+| ProtocolConfig | Global parameters registry | Ownable |
+
+## Vault Contracts
+
+| Contract | Strategy | Details |
+|----------|----------|---------|
+| [Vault A](/vaults/vault-a) | Delta-neutral funding rate | Long/short BTC perp |
+| [Vault B](/vaults/vault-b) | Leveraged BTC accumulation | Recursive CDP loop |
+| [Vault C](/vaults/vault-c) | ERC-4626 yield optimizer | SP + Ekubo + LZ |
+| [Vault D](/vaults/vault-d) | Covered call + PT/YT | Options + yield splitting |
+
+## External Interfaces
+
+| Interface | Protocol | Usage |
+|-----------|----------|-------|
+| `IPragmaABI` | Pragma Oracle | BTC/USD price feeds |
+| `IEkuboRouter` | Ekubo DEX | Token swaps, LP |
+| `IExtendedDex` | Extended | Margin trading, funding rates |
+
+## Deployment Addresses (Sepolia)
+
+```json
+{
+  "MoonUSD":          "0x4f939a71809aee6691bd05bce8c3dec1faf915633a70838a40f4f63ada6e484",
+  "PositionNFT":      "0x2750ea202b2e14b4bf6d6faeaf58e0818295fa0c77d804b27c1e0c0429d01e1",
+  "PriceOracle":      "0x381e474889554290793fde095f133a4f6afdf7e128d0ccb5af7b855967a918a",
+  "CDPManager":       "0x300a5714cc1bafe5e13297654739cc395703beb15701be71ffb9bf6cdc1a982",
+  "StabilityPool":    "0x5622000f5e62e1a09fe586b5d41c2c1c2b6cd0701eae9ed85118658ff67e3d4",
+  "RedemptionManager":"0x78e7d3ce5f606c66db587a4d38ce808e60973da2a1b61276dfd5bf89f149ffb",
+  "ProtocolConfig":   "0xb49bd862ff59f5a2c7ef01a23034b346dce65dbc7efa041dfbab895b3a3176"
+}
+```
+
+## Technology Stack
+
+- **Language**: Cairo 2.9.2
+- **Build**: Scarb 2.9.2
+- **Testing**: Starknet Foundry 0.35.0 (snforge)
+- **Dependencies**: OpenZeppelin Cairo Contracts v0.20.0, Pragma Lib

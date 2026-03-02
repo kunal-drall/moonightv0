@@ -1,0 +1,98 @@
+# Vault C — Yield Optimizer (vmoonUSD)
+
+**Risk**: Low-Medium | **Target APY**: 6-12% | **Entry**: moonUSD
+
+## Strategy
+
+Vault C is an **ERC-4626 tokenized vault** that accepts moonUSD deposits and optimally allocates across yield sources. Depositors receive **vmoonUSD** shares representing their proportional claim on the vault's assets.
+
+### Yield Sources
+
+| Source | Allocation | Yield Type |
+|--------|-----------|------------|
+| Stability Pool | 20-70% | Interest + liquidation collateral |
+| Ekubo LP | 10-50% | Swap fees (moonUSD/USDC pair) |
+| Lending (LayerZero) | 0-30% | Lending interest |
+
+### Allocation Strategy
+
+The keeper uses **softmax-weighted optimization** with configurable gamma (default 1.5):
+
+```
+weight_i = APY_i^gamma / Σ(APY_j^gamma)
+```
+
+Each weight is then clamped to the min/max bounds and renormalized. This concentrates allocation toward higher-APY sources while maintaining diversification.
+
+## ERC-4626 Interface
+
+Vault C implements the full ERC-4626 standard:
+
+```cairo
+// Core ERC-4626
+fn asset(self: @TContractState) -> ContractAddress           // moonUSD address
+fn total_assets(self: @TContractState) -> u256
+fn convert_to_shares(self: @TContractState, assets: u256) -> u256
+fn convert_to_assets(self: @TContractState, shares: u256) -> u256
+
+// Deposit
+fn max_deposit(self: @TContractState, receiver: ContractAddress) -> u256
+fn preview_deposit(self: @TContractState, assets: u256) -> u256
+fn deposit_assets(ref self: TContractState, assets: u256, receiver: ContractAddress) -> u256
+
+// Withdraw
+fn max_withdraw(self: @TContractState, owner: ContractAddress) -> u256
+fn preview_withdraw(self: @TContractState, assets: u256) -> u256
+fn withdraw_assets(ref self: TContractState, assets: u256, receiver: ContractAddress, owner: ContractAddress) -> u256
+
+// Redeem
+fn max_redeem(self: @TContractState, owner: ContractAddress) -> u256
+fn preview_redeem(self: @TContractState, shares: u256) -> u256
+fn redeem(ref self: TContractState, shares: u256, receiver: ContractAddress, owner: ContractAddress) -> u256
+```
+
+## Moonight Extensions
+
+```cairo
+// Direct USDC deposit (swaps to moonUSD internally)
+fn deposit_usdc(ref self: TContractState, usdc_amount: u256) -> u256
+
+// Compound: harvest + reinvest (deducts 15% performance fee)
+fn compound(ref self: TContractState)
+
+// Reallocate: softmax rebalance across yield sources
+fn reallocate(ref self: TContractState)
+
+// Read current allocation percentages (SP, Ekubo, LZ)
+fn get_allocation(self: @TContractState) -> (u256, u256, u256)
+
+// Current effective APY
+fn get_effective_apy(self: @TContractState) -> u256
+
+// Price per share (18 decimals)
+fn get_price_per_share(self: @TContractState) -> u256
+```
+
+## Share Pricing
+
+```
+pricePerShare = total_assets / total_supply
+```
+
+Where `total_assets` = moonUSD in vault + moonUSD deployed in SP + Ekubo LP value + lending balance.
+
+Shares are priced at deposit time. As yield accrues, `pricePerShare` increases, meaning existing holders gain value without any action.
+
+## Keeper Operations
+
+| Operation | Frequency | Description |
+|-----------|-----------|-------------|
+| `compound()` | Daily | Harvest yield from all sources, deduct 15% performance fee, reinvest |
+| `reallocate()` | Weekly | Run softmax optimization, rebalance across sources |
+
+## Risks
+
+- **Impermanent loss**: Ekubo LP allocation exposed to moonUSD/USDC depegging
+- **Stability Pool risk**: SP deposits partially consumed during liquidations
+- **Smart contract risk**: Multi-contract interactions (SP + Ekubo + LZ)
+- **Compounding delay**: Between compounds, yield is not reinvested

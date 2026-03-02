@@ -3,5 +3,5 @@
   "framework": "nextjs",
   "buildCommand": "pnpm build",
   "outputDirectory": ".next",
-  "ignoreCommand": "npx turbo-ignore @moonight/frontend"
+  "ignoreCommand": "npx turbo-ignore @moonight/docs"
 }

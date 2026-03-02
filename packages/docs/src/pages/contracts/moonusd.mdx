@@ -1,0 +1,69 @@
+# MoonUSD
+
+MoonUSD is the protocol's ERC-20 stablecoin, pegged to 1 USD. It is minted by depositing BTC collateral through the CDPManager and burned when debt is repaid or positions are redeemed/liquidated.
+
+**Address (Sepolia)**: `0x4f939a71809aee6691bd05bce8c3dec1faf915633a70838a40f4f63ada6e484`
+
+## Features
+
+- Standard ERC-20 (transfer, approve, transferFrom)
+- Role-based minting and burning (only authorized contracts)
+- Pausable by owner (emergency halt)
+- OpenZeppelin ERC20Component + OwnableComponent + PausableComponent
+
+## Role Management
+
+MoonUSD uses explicit minter/burner roles instead of a single admin:
+
+| Role | Authorized Addresses |
+|------|---------------------|
+| Minter | CDPManager |
+| Burner | CDPManager, StabilityPool, RedemptionManager |
+
+### `add_minter` / `remove_minter`
+
+```cairo
+fn add_minter(ref self: TContractState, minter: ContractAddress)    // owner-only
+fn remove_minter(ref self: TContractState, minter: ContractAddress) // owner-only
+```
+
+### `add_burner` / `remove_burner`
+
+```cairo
+fn add_burner(ref self: TContractState, burner: ContractAddress)    // owner-only
+fn remove_burner(ref self: TContractState, burner: ContractAddress) // owner-only
+```
+
+## Mint & Burn
+
+### `mint`
+
+Mints moonUSD to a specified address. Caller must be an authorized minter.
+
+```cairo
+fn mint(ref self: TContractState, to: ContractAddress, amount: u256)
+```
+
+### `burn`
+
+Burns moonUSD from a specified address. Caller must be an authorized burner.
+
+```cairo
+fn burn(ref self: TContractState, from: ContractAddress, amount: u256)
+```
+
+## Read Functions
+
+```cairo
+fn is_minter(self: @TContractState, address: ContractAddress) -> bool
+fn is_burner(self: @TContractState, address: ContractAddress) -> bool
+```
+
+## Emergency
+
+```cairo
+fn pause(ref self: TContractState)    // owner-only
+fn unpause(ref self: TContractState)  // owner-only
+```
+
+When paused, all mint and burn operations revert. Standard ERC-20 transfers remain operational.

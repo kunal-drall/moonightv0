@@ -1,0 +1,79 @@
+# PriceOracle
+
+The PriceOracle wraps [Pragma](https://pragma.build/)'s on-chain oracle to provide BTC/USD price feeds with staleness checks, TWAP support, and emergency fallback.
+
+**Address (Sepolia)**: `0x381e474889554290793fde095f133a4f6afdf7e128d0ccb5af7b855967a918a`
+
+## How It Works
+
+1. CDPManager calls `get_price('WBTC')` or `get_price_twap('WBTC')`
+2. Oracle maps `'WBTC'` → Pragma key `'BTC/USD'`
+3. Calls Pragma's `get_data_median(SpotEntry('BTC/USD'))`
+4. Validates freshness: `block.timestamp - last_updated < MAX_STALENESS`
+5. Normalizes to 18 decimals: `price * 10^(18 - pragma_decimals)`
+6. Returns `(price_u256, timestamp_u64)`
+
+## Staleness & Emergency Mode
+
+| State | Condition | Behavior |
+|-------|-----------|----------|
+| **Fresh** | `age < MAX_STALENESS` (3600s) | Returns live price |
+| **Grace period** | `3600s < age < 6 hours` | Returns cached `last_valid_price` |
+| **Emergency** | `age > 6 hours` | Sets `emergency_mode = true`, reverts minting |
+
+In emergency mode:
+- New CDPs cannot be opened
+- Minting/withdrawals are blocked
+- Liquidations continue using the last valid price
+- Owner can call `reset_emergency()` after oracle resumes
+
+## API Reference
+
+### Read Functions
+
+```cairo
+// Returns (price: u256, timestamp: u64) — price in 18 decimals
+fn get_price(self: @TContractState, collateral_type: felt252) -> (u256, u64)
+
+// Returns TWAP price over configured window
+fn get_price_twap(self: @TContractState, collateral_type: felt252) -> (u256, u64)
+
+// Check if price was updated within MAX_STALENESS
+fn is_price_fresh(self: @TContractState, collateral_type: felt252) -> bool
+
+// Check if emergency mode is active
+fn is_emergency_mode(self: @TContractState) -> bool
+```
+
+### Admin Functions (Owner-only)
+
+```cairo
+// Set Pragma oracle contract address
+fn set_pragma_address(ref self: TContractState, address: ContractAddress)
+
+// Map collateral type to Pragma pair key
+fn set_asset_key(ref self: TContractState, collateral_type: felt252, pragma_key: felt252)
+
+// Set TWAP calculation window (default: 900 seconds / 15 min)
+fn set_twap_window(ref self: TContractState, window: u64)
+
+// Set maximum price age before fallback (default: 3600 seconds)
+fn set_max_staleness(ref self: TContractState, staleness: u64)
+```
+
+## Pragma Integration
+
+| Network | Pragma Address |
+|---------|---------------|
+| Sepolia | `0x36031daa264c24520b11d93af622c848b2499b66b41d611bac95e13cfca131a` |
+| Mainnet | `0x2a85bd616f912537c50a49a4076db02c00b29b2cdc8a197ce92ed1837fa875b` |
+
+### Supported Asset Keys
+
+| Collateral | Pragma Key | Method |
+|-----------|------------|--------|
+| WBTC | `BTC/USD` | Direct spot |
+| tBTC | `tBTC/BTC` × `BTC/USD` | USD hop |
+| solvBTC | `solvBTC/BTC` × `BTC/USD` | USD hop |
+
+Pragma feeds are permissionless — no API key required for on-chain reads.

@@ -1,0 +1,42 @@
+# Moonight Protocol
+
+**BTC-backed stablecoin protocol on Starknet**
+
+Moonight enables users to deposit BTC-denominated collateral (WBTC, tBTC, solvBTC) to mint **moonUSD**, a fully-backed stablecoin. The protocol combines a CDP engine, four specialized vault strategies, a stability pool, and a virtual debit card — all built natively on Starknet with Cairo smart contracts.
+
+---
+
+## Core Components
+
+| Component | Purpose |
+|-----------|---------|
+| **CDP Engine** | Deposit BTC collateral → mint moonUSD at variable rates |
+| **Stability Pool** | Deposit moonUSD → earn interest + liquidation collateral |
+| **Redemption Queue** | Redeem moonUSD → receive BTC collateral at peg |
+| **Vault A** | Delta-neutral funding rate arbitrage |
+| **Vault B** | Leveraged BTC accumulation loop |
+| **Vault C** | ERC-4626 yield optimizer (vmoonUSD) |
+| **Vault D** | Covered call writing + PT/YT tokenization |
+| **Moonight Card** | Virtual debit card funded from vaults |
+
+## Key Numbers
+
+| Parameter | Value |
+|-----------|-------|
+| Max LTV | 80% (WBTC) |
+| Liquidation threshold | HF ≤ 1.0 |
+| Interest rate range | 0.5% – 15% APR |
+| Minimum debt | 100 moonUSD |
+| Oracle | Pragma (BTC/USD, 3600s staleness) |
+
+## Network
+
+Moonight is live on **Starknet Sepolia** testnet. All contracts are deployed and verified.
+
+## Quick Links
+
+- [Getting Started →](/getting-started)
+- [Architecture →](/architecture)
+- [Smart Contracts →](/contracts)
+- [Vault Strategies →](/vaults)
+- [GitHub Repository](https://github.com/kunal-drall/moonightv0)

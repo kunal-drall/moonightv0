@@ -1,0 +1,82 @@
+# Security
+
+## Security Model
+
+Moonight Protocol implements defense-in-depth security across all layers:
+
+### Smart Contract Security
+
+| Mechanism | Implementation |
+|-----------|---------------|
+| **Access Control** | OpenZeppelin `OwnableComponent` on all admin functions |
+| **Reentrancy Protection** | `ReentrancyGuardComponent` on all state-mutating functions |
+| **Pausability** | `PausableComponent` — owner/guardian can halt operations |
+| **Input Validation** | All external functions validate ranges, zero-addresses, amounts |
+| **Checked Arithmetic** | Fixed-point math with explicit bounds assertions |
+
+### Access Control Matrix
+
+| Function | Allowed Callers |
+|----------|----------------|
+| `moonusd.mint()` | CDPManager |
+| `moonusd.burn()` | CDPManager, StabilityPool, RedemptionManager |
+| `position_nft.mint/burn()` | CDPManager |
+| `stability_pool.absorb()` | CDPManager |
+| `redemption_manager.insert/remove()` | CDPManager |
+| `vault_a.trigger_flip()` | Keeper |
+| `vault_c.reallocate()` | Keeper, Owner |
+| `protocol_config.*()` | Owner (timelocked on mainnet) |
+| `*.pause()` | Owner, Guardian |
+
+### Oracle Security
+
+- **Staleness check**: Prices older than 3600s trigger fallback
+- **Grace period**: 6-hour window using last valid price
+- **Emergency mode**: Auto-activates when oracle is down — blocks minting, allows liquidations
+- **Source validation**: Requires `num_sources > 0` from Pragma aggregators
+
+## Reporting Vulnerabilities
+
+**Do NOT open a public issue for security vulnerabilities.**
+
+Email security reports to: **security@moonight.fun**
+
+Include:
+- Description of the vulnerability
+- Steps to reproduce
+- Potential impact assessment
+- Suggested fix (if any)
+
+We will:
+- Acknowledge reports within 48 hours
+- Provide a detailed response within 7 days
+- Credit reporters in security advisories (unless anonymity is requested)
+
+## Audit Status
+
+| Phase | Status |
+|-------|--------|
+| Internal review | Complete |
+| External audit | Planned (pre-mainnet) |
+| Bug bounty | Planned (Immunefi) |
+
+## Security Guidelines for Contributors
+
+1. **Never commit secrets** — private keys, API keys, or credentials
+2. **Validate all external inputs** — at contract boundaries and API endpoints
+3. **Use checked arithmetic** — for all financial calculations
+4. **Follow least privilege** — minimal permissions for each contract role
+5. **Emit events** — for all state changes (enables monitoring)
+6. **No `--no-verify`** — never bypass git hooks or security checks
+
+## Mainnet Readiness Checklist
+
+- [ ] External audit completed
+- [ ] Bug bounty program launched
+- [ ] Multi-sig wallet for admin/owner role
+- [ ] 48-hour timelock on parameter changes
+- [ ] Emergency guardian address configured
+- [ ] Monitoring and alerting operational
+- [ ] Incident response runbook documented
+- [ ] Conservative initial collateral caps
+- [ ] Gradual cap increase plan defined

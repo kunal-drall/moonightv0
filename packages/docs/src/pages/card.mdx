@@ -1,0 +1,81 @@
+# Moonight Card
+
+The Moonight Card is a virtual debit card powered by [Rain.xyz](https://rain.xyz), enabling users to spend their vault yields in the real world.
+
+## How It Works
+
+```
+Vault C (vmoonUSD)
+    ↓ withdraw
+moonUSD
+    ↓ swap (Ekubo)
+USDC
+    ↓ fund (Rain API)
+Virtual Debit Card
+    ↓ spend
+Visa/Mastercard merchants
+```
+
+## Features
+
+### Virtual Debit Card
+- Issued after KYC verification through Rain.xyz
+- Visa-compatible virtual card (Apple Pay / Google Pay)
+- Funded from moonUSD vault withdrawals (converted to USDC)
+- Real-time balance tracking
+
+### Auto-Top-Up
+Configure automatic refills when card balance drops below a threshold:
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| Source | Which vault to withdraw from | Vault C |
+| Threshold | Balance trigger for top-up | $50 |
+| Amount | How much to top-up | $200 |
+| Frequency cap | Minimum time between top-ups | 24 hours |
+
+### Transaction History
+View all card transactions with merchant name, category, amount, and status.
+
+## KYC Flow
+
+1. User initiates KYC from the Moonight app
+2. Redirected to Rain.xyz verification portal
+3. Rain processes identity verification
+4. On approval: virtual card is automatically issued
+5. Card details (number, expiry, CVV) available in the Moonight app
+
+## API Endpoints (Backend)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/card/kyc` | Initiate KYC verification |
+| GET | `/api/card/status` | Get card status and details |
+| POST | `/api/card/topup` | Manual card top-up |
+| PUT | `/api/card/auto-topup` | Configure auto-top-up settings |
+| GET | `/api/card/transactions` | Get transaction history |
+
+## Webhook Events
+
+Rain.xyz sends webhook notifications for card events:
+
+| Event | Action |
+|-------|--------|
+| `cardholder.kyc_approved` | Issue virtual card |
+| `cardholder.kyc_rejected` | Notify user |
+| `transaction.authorized` | Log transaction |
+| `transaction.settled` | Final settlement |
+| `balance.low` | Trigger auto-top-up check |
+
+All webhooks are verified using HMAC-SHA256 signatures.
+
+## Network Note
+
+Card functionality requires mainnet USDC for real transactions. On Sepolia testnet, the card interface is available in sandbox mode for testing the flow.
+
+## Credit Card (Coming Soon)
+
+A credit card product with on-chain credit scoring based on:
+- CDP history and repayment record
+- Vault deposit duration and size
+- Protocol participation score

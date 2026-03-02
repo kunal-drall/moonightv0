@@ -1,0 +1,104 @@
+# Testing
+
+## Test Overview
+
+| Layer | Framework | Tests | Command |
+|-------|-----------|-------|---------|
+| Contract unit tests | Scarb (inline `#[cfg(test)]`) | 22 | `bash scripts/test-unit.sh` |
+| Contract integration | snforge | 88 | `cd packages/contracts && snforge test` |
+| Backend | Vitest | — | `pnpm --filter @moonight/backend test` |
+| Frontend | — | — | `pnpm --filter @moonight/frontend build` (type check) |
+
+## Contract Unit Tests
+
+Inline tests in Cairo source files. These test pure math functions and don't require snforge:
+
+```bash
+bash scripts/test-unit.sh
+```
+
+This runs a minimal Scarb build with only the math modules (no OpenZeppelin dependencies), keeping memory usage low.
+
+### Tests included:
+- `fixed_point.cairo` — 13 tests (mul_fp, div_fp, from_bps, to_bps, normalize_price)
+- `interest.cairo` — 9 tests (interest accrual over various time periods)
+
+## Contract Integration Tests
+
+Full integration tests using [Starknet Foundry](https://foundry-rs.github.io/starknet-foundry/). These require 16GB+ RAM.
+
+```bash
+cd packages/contracts
+
+# Enable snforge_std (commented out by default for low-memory builds)
+sed -i 's/# snforge_std/snforge_std/' Scarb.toml
+
+# Run tests
+snforge test
+```
+
+### Test Files
+
+| File | Tests | Coverage |
+|------|-------|----------|
+| `test_fixed_point.cairo` | 37 | All fixed-point math operations |
+| `test_moonusd.cairo` | 10 | Minting, burning, roles, pause |
+| `test_position_nft.cairo` | 8 | Mint, burn, ownership, supply |
+| `test_cdp_lifecycle.cairo` | 10 | Open, deposit, withdraw, repay, close |
+| `test_stability_pool.cairo` | 6 | Deposit, withdraw, absorb, compounding |
+| `test_oracle.cairo` | 6 | Price fetch, staleness, emergency |
+| `test_vault_c.cairo` | 11 | ERC-4626 deposit, withdraw, redeem, compound |
+
+### Writing a New Test
+
+Tests go in `packages/contracts/tests/`. Use the test utilities:
+
+```cairo
+use moonight::test_utils::setup::{deploy_moonusd, deploy_mock_oracle};
+use snforge_std::{declare, ContractClassTrait, start_cheat_caller_address};
+
+#[test]
+fn test_my_feature() {
+    let owner = starknet::contract_address_const::<'owner'>();
+    let moonusd_addr = deploy_moonusd(owner);
+
+    // Use start_cheat_caller_address to impersonate callers
+    start_cheat_caller_address(moonusd_addr, owner);
+
+    // ... test logic
+
+    // Assert expected results
+    assert(result == expected, 'Unexpected result');
+}
+```
+
+### Test Utilities
+
+Located in `packages/contracts/src/test_utils/`:
+
+| Module | Functions |
+|--------|-----------|
+| `setup.cairo` | `deploy_moonusd()`, `deploy_position_nft()`, `deploy_mock_erc20()`, `deploy_mock_oracle()`, `deploy_full_protocol()` |
+| `mock_erc20.cairo` | Minimal ERC-20 for testing (mint, transfer, approve) |
+| `mock_oracle.cairo` | Configurable price oracle for testing |
+| `mock_extended.cairo` | Mock Extended DEX for Vault A tests |
+
+## Backend Tests
+
+```bash
+pnpm --filter @moonight/backend test        # run once
+pnpm --filter @moonight/backend test:watch  # watch mode
+```
+
+## CI Pipeline
+
+All tests run automatically on push and pull requests:
+
+| Job | What it tests |
+|-----|--------------|
+| `contracts-build` | `scarb build` compiles all contracts |
+| `contracts-test-unit` | Inline `#[cfg(test)]` math tests |
+| `contracts-test-integration` | snforge integration tests |
+| `frontend-build` | Next.js build (type checking) |
+| `frontend-lint` | ESLint |
+| `backend-build` | TypeScript compilation |

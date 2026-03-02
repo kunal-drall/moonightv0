@@ -1,0 +1,93 @@
+# Vault D — Covered Call + PT/YT
+
+**Risk**: Medium | **Target APY**: 12-25% | **Entry**: BTC
+
+## Strategy
+
+Vault D combines two yield mechanisms:
+
+1. **Covered call writing**: Sells BTC call options at strike prices above spot. Collects premium income. If BTC stays below strike at expiry, vault keeps premium + BTC. If above, vault delivers BTC at strike price.
+
+2. **PT/YT tokenization** (Pendle-style): Splits remaining yield into:
+   - **Principal Tokens (PT)**: Redeemable for underlying BTC at maturity — purchased at discount for fixed yield
+   - **Yield Tokens (YT)**: Receives all variable yield until maturity — leveraged yield exposure
+
+## Epoch Structure
+
+| Phase | Duration | Actions |
+|-------|----------|---------|
+| **Active** | 7 days | Options written, premiums collected, yield accrues |
+| **Settlement** | End of epoch | Options settled, collateral distributed, new epoch begins |
+| **Maturity** | End of term | PT holders redeem underlying, YT yield finalized |
+
+## Key Mechanics
+
+### Covered Call Writing
+
+```
+1. Vault holds BTC collateral
+2. Keeper writes call options at 10-15% OTM strike
+3. Premium collected immediately → distributed as yield
+4. At expiry:
+   - BTC < strike → option expires worthless, vault keeps BTC + premium
+   - BTC ≥ strike → vault delivers BTC at strike, keeps premium
+```
+
+### PT/YT Split
+
+After covered call settlement, remaining yield is split:
+
+```
+Total yield = option_premiums + funding_income - expired_option_losses
+
+PT value at maturity = initial_deposit (guaranteed BTC return)
+PT purchase price = initial_deposit × (1 - fixed_yield_rate)
+
+YT value = accumulated_variable_yield
+YT holders receive: all yield generated until maturity
+```
+
+### Example
+
+- Deposit 1 BTC when BTC = $60,000
+- 7-day covered call at $66,000 strike earns 0.5% premium ($300)
+- PT issued at 5% annual discount → PT buyer pays 0.99 BTC now, gets 1 BTC in 90 days
+- YT holder receives all premiums during the 90-day term
+
+## API Reference
+
+### User Functions
+
+```cairo
+fn deposit(ref self: TContractState, btc_amount: u256) -> u256       // returns shares
+fn withdraw(ref self: TContractState, shares: u256)
+fn mint_pt_yt(ref self: TContractState, shares: u256) -> (u256, u256) // returns (pt_amount, yt_amount)
+fn redeem_pt(ref self: TContractState, pt_amount: u256)               // at maturity
+fn claim_yt_yield(ref self: TContractState)
+```
+
+### Keeper Functions
+
+```cairo
+fn settle_epoch(ref self: TContractState)        // settle expired options
+fn write_options(ref self: TContractState)        // write new covered calls
+fn distribute_premiums(ref self: TContractState)  // distribute premium income
+```
+
+### Read Functions
+
+```cairo
+fn get_current_epoch(self: @TContractState) -> EpochData
+fn get_pt_price(self: @TContractState) -> u256
+fn get_yt_accumulated(self: @TContractState, user: ContractAddress) -> u256
+fn get_option_strike(self: @TContractState) -> u256
+fn get_option_expiry(self: @TContractState) -> u64
+```
+
+## Risks
+
+- **Assignment risk**: If BTC rallies above strike, vault caps upside at strike price
+- **Yield variability**: YT returns depend on option premiums, which vary with volatility
+- **Maturity lock**: PT/YT positions are locked until maturity
+- **Smart contract complexity**: Options + tokenization + CDP interactions
+- **Oracle dependency**: Strike price calculation depends on accurate BTC/USD feeds

@@ -1,0 +1,81 @@
+# Vault B — Leveraged BTC Accumulation
+
+**Risk**: High | **Target APY**: 20-40%+ (in BTC terms, when BTC rises) | **Entry**: BTC
+
+## Strategy
+
+Vault B creates leveraged long BTC exposure through recursive CDP looping:
+
+```
+Deposit 1 BTC
+  → Open CDP (80% LTV) → mint 0.8 BTC worth of moonUSD
+    → Swap moonUSD → BTC via Ekubo
+      → Deposit BTC into same CDP
+        → Mint more moonUSD
+          → Repeat until target leverage reached
+```
+
+At 80% LTV with 3 loops, effective leverage reaches ~2.5x. Maximum theoretical leverage is ~5x.
+
+## Key Mechanics
+
+### Leverage Tiers
+
+| Loops | Effective Leverage | Liquidation Drop |
+|-------|-------------------|-----------------|
+| 1 | ~1.8x | -44% |
+| 2 | ~2.4x | -33% |
+| 3 | ~2.9x | -28% |
+| 4 | ~3.3x | -24% |
+| 5 | ~3.6x | -22% |
+
+### Rebalancing
+The keeper monitors position health factors. When HF approaches liquidation threshold:
+- **Deleverage**: Unwind one loop (withdraw collateral → swap to moonUSD → repay debt)
+- **Add collateral**: If vault has reserves, deposit more BTC to restore HF
+
+### Position Tracking
+
+```cairo
+struct LeveragePosition {
+    base_collateral: u256,     // original BTC deposited
+    total_collateral: u256,    // after looping
+    total_debt: u256,          // total moonUSD minted
+    loops: u8,                 // number of leverage rounds
+    effective_leverage: u256,  // total_collateral / base_collateral
+}
+```
+
+## API Reference
+
+### User Functions
+
+```cairo
+fn deposit(ref self: TContractState, btc_amount: u256, target_loops: u8) -> u256
+fn withdraw(ref self: TContractState, shares: u256)
+fn get_user_leverage(self: @TContractState, user: ContractAddress) -> LeveragePosition
+```
+
+### Keeper Functions
+
+```cairo
+fn rebalance(ref self: TContractState)               // restore HF targets
+fn deleverage(ref self: TContractState, loops: u8)   // unwind leverage loops
+fn emergency_exit(ref self: TContractState)           // full unwind
+```
+
+### Read Functions
+
+```cairo
+fn get_vault_health(self: @TContractState) -> u256    // aggregate HF
+fn get_total_leverage(self: @TContractState) -> u256
+fn get_btc_exposure(self: @TContractState) -> u256    // total BTC controlled
+```
+
+## Risks
+
+- **Liquidation**: If BTC drops fast enough, positions can be liquidated before the keeper deleverages
+- **Swap slippage**: Large moonUSD → BTC swaps may incur significant slippage
+- **Compounding losses**: Leverage amplifies losses when BTC price drops
+- **Interest costs**: Borrow fees and ongoing interest reduce net returns
+- **Oracle latency**: Stale prices can delay liquidation protection
