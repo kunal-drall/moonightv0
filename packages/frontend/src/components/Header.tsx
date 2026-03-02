@@ -6,14 +6,15 @@ import { useState } from "react";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
 import ConnectWallet from "./ConnectWallet";
 
+const isMainnet = process.env.NEXT_PUBLIC_STARKNET_NETWORK === "mainnet";
+
 const navLinks = [
   { name: "Dashboard", href: "/" },
   { name: "Mint", href: "/mint" },
   { name: "Vaults", href: "/vaults" },
   { name: "Card", href: "/card" },
+  ...(!isMainnet ? [{ name: "Faucet", href: "/faucet" }] : []),
 ];
-
-const isMainnet = process.env.NEXT_PUBLIC_STARKNET_NETWORK === "mainnet";
 
 export default function Header() {
   const pathname = usePathname();
