@@ -60,7 +60,11 @@ async function main() {
   console.log("");
 
   const provider = new RpcProvider({ nodeUrl: RPC_URL });
-  const account = new Account(provider, DEPLOYER_ADDRESS, PRIVATE_KEY);
+  const account = new Account({
+    provider,
+    address: DEPLOYER_ADDRESS,
+    signer: PRIVATE_KEY,
+  });
 
   // Build multicall: all permission-setting calls in one transaction
   const calls: any[] = [];
