@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useAccount } from "@starknet-react/core";
 import {
   InformationCircleIcon,
@@ -11,7 +11,26 @@ import {
 } from "@heroicons/react/24/outline";
 import StatsCard from "@/components/StatsCard";
 
-const BTC_PRICE = 97420;
+function useLiveBtcPrice(fallback: number) {
+  const [price, setPrice] = useState(fallback);
+  useEffect(() => {
+    async function fetchPrice() {
+      try {
+        const res = await fetch(
+          "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
+        );
+        const data = await res.json();
+        if (data.bitcoin?.usd) setPrice(data.bitcoin.usd);
+      } catch {
+        /* keep fallback */
+      }
+    }
+    fetchPrice();
+    const interval = setInterval(fetchPrice, 60_000);
+    return () => clearInterval(interval);
+  }, []);
+  return price;
+}
 const MIN_COLLATERAL_RATIO = 150;
 const LIQUIDATION_RATIO = 130;
 
@@ -50,6 +69,7 @@ function getHealthFactorBarColor(hf: number): string {
 
 export default function MintPage() {
   const { isConnected } = useAccount();
+  const BTC_PRICE = useLiveBtcPrice(66000);
   const [collateralAmount, setCollateralAmount] = useState<string>("");
   const [borrowAmount, setBorrowAmount] = useState<string>("");
   const [selectedRate, setSelectedRate] = useState<number>(1);
@@ -57,7 +77,7 @@ export default function MintPage() {
   const collateralValue = useMemo(() => {
     const amount = parseFloat(collateralAmount) || 0;
     return amount * BTC_PRICE;
-  }, [collateralAmount]);
+  }, [collateralAmount, BTC_PRICE]);
 
   const maxBorrow = useMemo(() => {
     return collateralValue / (MIN_COLLATERAL_RATIO / 100);

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import {
   CurrencyDollarIcon,
   ShieldCheckIcon,
@@ -12,32 +13,40 @@ import {
 } from "@heroicons/react/24/outline";
 import StatsCard from "@/components/StatsCard";
 
-const stats = [
-  {
-    title: "Total Value Locked",
-    value: "$24.8M",
-    subtitle: "Across all vaults",
-    change: { value: "+12.4%", positive: true },
-    icon: <CubeTransparentIcon className="w-5 h-5 text-primary-400" />,
-    accentColor: "primary" as const,
-  },
-  {
-    title: "moonUSD Supply",
-    value: "18.2M",
-    subtitle: "Circulating supply",
-    change: { value: "+5.7%", positive: true },
-    icon: <CurrencyDollarIcon className="w-5 h-5 text-accent-400" />,
-    accentColor: "accent" as const,
-  },
-  {
-    title: "BTC Price",
-    value: "$97,420",
-    subtitle: "Oracle feed",
-    change: { value: "+2.1%", positive: true },
-    icon: <ChartBarIcon className="w-5 h-5 text-green-400" />,
-    accentColor: "green" as const,
-  },
-];
+function useBtcPrice() {
+  const [price, setPrice] = useState<string>("--");
+  const [change, setChange] = useState<{ value: string; positive: boolean }>({
+    value: "--",
+    positive: true,
+  });
+
+  useEffect(() => {
+    async function fetchPrice() {
+      try {
+        const res = await fetch(
+          "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true"
+        );
+        const data = await res.json();
+        const btcPrice = data.bitcoin.usd;
+        const btcChange = data.bitcoin.usd_24h_change;
+        setPrice(
+          `$${btcPrice.toLocaleString("en-US", { maximumFractionDigits: 0 })}`
+        );
+        setChange({
+          value: `${btcChange >= 0 ? "+" : ""}${btcChange.toFixed(1)}%`,
+          positive: btcChange >= 0,
+        });
+      } catch {
+        setPrice("--");
+      }
+    }
+    fetchPrice();
+    const interval = setInterval(fetchPrice, 60_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return { price, change };
+}
 
 const quickActions = [
   {
@@ -96,6 +105,35 @@ const features = [
 ];
 
 export default function HomePage() {
+  const btc = useBtcPrice();
+
+  const stats = [
+    {
+      title: "Total Value Locked",
+      value: "$0",
+      subtitle: "Across all vaults",
+      change: { value: "--", positive: true },
+      icon: <CubeTransparentIcon className="w-5 h-5 text-primary-400" />,
+      accentColor: "primary" as const,
+    },
+    {
+      title: "moonUSD Supply",
+      value: "0",
+      subtitle: "Circulating supply",
+      change: { value: "--", positive: true },
+      icon: <CurrencyDollarIcon className="w-5 h-5 text-accent-400" />,
+      accentColor: "accent" as const,
+    },
+    {
+      title: "BTC Price",
+      value: btc.price,
+      subtitle: "CoinGecko live feed",
+      change: btc.change,
+      icon: <ChartBarIcon className="w-5 h-5 text-green-400" />,
+      accentColor: "green" as const,
+    },
+  ];
+
   return (
     <div className="relative">
       {/* Hero Section */}
