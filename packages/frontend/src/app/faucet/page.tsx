@@ -9,9 +9,8 @@ import {
   ArrowTopRightOnSquareIcon,
   ClipboardDocumentIcon,
   PlusCircleIcon,
-  WalletIcon,
+  InformationCircleIcon,
 } from "@heroicons/react/24/outline";
-import StatsCard from "@/components/StatsCard";
 import { Contract, cairo } from "starknet";
 
 const MOCK_WBTC_ADDRESS = process.env.NEXT_PUBLIC_MOCK_WBTC || "";
@@ -72,7 +71,12 @@ export default function FaucetPage() {
       const result = await account.execute(call);
       setTxHash(result.transaction_hash);
     } catch (e: any) {
-      setError(e?.message?.slice(0, 200) || "Transaction failed");
+      const msg = String(e?.message || "");
+      if (msg.includes("User abort") || msg.includes("rejected")) {
+        setError("Transaction rejected by wallet.");
+      } else {
+        setError("Mint transaction failed. Please try again.");
+      }
     } finally {
       setMinting(false);
     }
@@ -102,19 +106,23 @@ export default function FaucetPage() {
     }
   }, []);
 
-  const copyToClipboard = (text: string, key: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(key);
-    setTimeout(() => setCopied(""), 2000);
+  const copyToClipboard = async (text: string, key: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(key);
+      setTimeout(() => setCopied(""), 2000);
+    } catch {
+      /* clipboard unavailable */
+    }
   };
 
   if (!MOCK_WBTC_ADDRESS) {
     return (
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="card text-center py-12">
-          <BeakerIcon className="w-12 h-12 text-dark-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-dark-100 mb-2">Faucet Not Available</h2>
-          <p className="text-sm text-dark-400">
+        <div className="text-center py-12">
+          <BeakerIcon className="w-8 h-8 text-text-2 mx-auto mb-4" />
+          <h2 className="text-lg font-display font-semibold text-text-0 mb-2">Faucet Not Available</h2>
+          <p className="text-sm text-text-2">
             MockWBTC has not been deployed yet. Please check back later.
           </p>
         </div>
@@ -125,67 +133,57 @@ export default function FaucetPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
       {/* Page Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-2">
-          <h1 className="text-2xl sm:text-3xl font-bold text-dark-50">
+      <div className="mb-10" data-animate="0">
+        <div className="flex items-center gap-3 mb-1">
+          <h1 className="text-xl sm:text-2xl font-display font-semibold text-text-0">
             Testnet Faucet
           </h1>
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-primary-500/10 border border-primary-500/20 text-[10px] font-medium text-primary-400 uppercase tracking-wider">
+          <span className="text-[10px] font-display uppercase tracking-wider text-accent border border-accent/20 px-2 py-0.5">
             Sepolia
           </span>
         </div>
-        <p className="text-dark-400">
+        <p className="text-sm text-text-2">
           Mint test WBTC to use as collateral in the Moonight protocol
         </p>
       </div>
 
-      {/* Token Info Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-        <StatsCard
-          title="Test WBTC"
-          value="Free Mint"
-          subtitle="No limit on testnet"
-          icon={<BeakerIcon className="w-5 h-5 text-accent-400" />}
-          accentColor="accent"
-        />
-        <StatsCard
-          title="Network"
-          value="Sepolia"
-          subtitle="Starknet testnet"
-          icon={<WalletIcon className="w-5 h-5 text-primary-400" />}
-          accentColor="primary"
-        />
+      {/* Token Info */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mb-10 pb-8 border-b border-border/30" data-animate="1">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.15em] text-text-2 font-display mb-1.5">Test WBTC</p>
+          <p className="text-2xl font-mono font-semibold text-text-0 tracking-tight">Free Mint</p>
+          <p className="text-xs text-text-2 mt-1">No limit on testnet</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.15em] text-text-2 font-display mb-1.5">Network</p>
+          <p className="text-2xl font-mono font-semibold text-text-0 tracking-tight">Sepolia</p>
+          <p className="text-xs text-text-2 mt-1">Starknet testnet</p>
+        </div>
       </div>
 
-      {/* Mint Card */}
-      <div className="card mb-6">
-        <h3 className="text-base font-semibold text-dark-100 mb-4">
+      {/* Mint Section */}
+      <div className="mb-8" data-animate="2">
+        <h3 className="text-sm font-display text-text-0 mb-4">
           Mint Test WBTC
         </h3>
 
-        {/* Amount Selection */}
+        {/* Amount Selection — inline text buttons */}
         <div className="mb-5">
-          <label className="text-xs text-dark-400 mb-2 block">Select Amount</label>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <label className="text-[10px] uppercase tracking-wider text-text-2 font-display mb-3 block">
+            Select Amount
+          </label>
+          <div className="flex items-center gap-1 border-b border-border/30">
             {MINT_AMOUNTS.map((amt) => (
               <button
                 key={amt.label}
                 onClick={() => setSelectedAmount(amt)}
-                className={`p-3 rounded-xl border text-center transition-all ${
+                className={`px-4 py-2.5 text-sm font-mono border-b-2 -mb-px transition-all ${
                   selectedAmount.label === amt.label
-                    ? "bg-primary-500/10 border-primary-500/30 ring-1 ring-primary-500/20"
-                    : "bg-dark-900/30 border-dark-700/30 hover:border-dark-600"
+                    ? "text-accent border-accent"
+                    : "text-text-2 border-transparent hover:text-text-1"
                 }`}
               >
-                <p
-                  className={`text-sm font-semibold ${
-                    selectedAmount.label === amt.label
-                      ? "text-primary-400"
-                      : "text-dark-300"
-                  }`}
-                >
-                  {amt.label}
-                </p>
+                {amt.label}
               </button>
             ))}
           </div>
@@ -206,10 +204,10 @@ export default function FaucetPage() {
 
         {/* Success */}
         {txHash && (
-          <div className="mt-4 p-4 rounded-xl bg-green-500/5 border border-green-500/20">
+          <div className="mt-4 p-4 border-l-2 border-success bg-success/5">
             <div className="flex items-center gap-2 mb-2">
-              <CheckCircleIcon className="w-5 h-5 text-green-400" />
-              <p className="text-sm font-semibold text-green-400">
+              <CheckCircleIcon className="w-4 h-4 text-success" />
+              <p className="text-sm font-display text-success">
                 {selectedAmount.label} minted successfully!
               </p>
             </div>
@@ -217,60 +215,61 @@ export default function FaucetPage() {
               href={`${EXPLORER_BASE}/tx/${txHash}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-primary-400 hover:text-primary-300 flex items-center gap-1 transition-colors"
+              className="text-xs text-accent hover:text-accent/80 flex items-center gap-1 transition-colors"
             >
               View on Voyager
-              <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5" />
+              <ArrowTopRightOnSquareIcon className="w-3 h-3" />
             </a>
           </div>
         )}
 
         {/* Error */}
         {error && (
-          <div className="mt-4 p-4 rounded-xl bg-red-500/5 border border-red-500/20">
+          <div className="mt-4 p-4 border-l-2 border-danger bg-danger/5">
             <div className="flex items-center gap-2">
-              <ExclamationTriangleIcon className="w-5 h-5 text-red-400 flex-shrink-0" />
-              <p className="text-xs text-red-300">{error}</p>
+              <ExclamationTriangleIcon className="w-4 h-4 text-danger flex-shrink-0" />
+              <p className="text-xs text-danger/80">{error}</p>
             </div>
           </div>
         )}
       </div>
 
       {/* Add Token to Wallet */}
-      <div className="card mb-6">
-        <h3 className="text-base font-semibold text-dark-100 mb-3">
+      <div className="border-t border-border/30 pt-8 mb-8" data-animate="3">
+        <h3 className="text-sm font-display text-text-0 mb-3">
           Add Token to Your Wallet
         </h3>
-        <p className="text-sm text-dark-400 mb-4 leading-relaxed">
+        <p className="text-xs text-text-2 mb-4 leading-relaxed">
           After minting, add WBTC to your wallet so it shows up in your token
-          list. Click the button below or manually add the token contract
-          address.
+          list.
         </p>
 
         <button
           onClick={handleAddToWallet}
-          className="btn-secondary text-sm mb-4 flex items-center gap-2"
+          className="btn-secondary text-sm mb-5 flex items-center gap-2"
         >
-          <PlusCircleIcon className="w-4 h-4" />
+          <PlusCircleIcon className="w-3.5 h-3.5" />
           Add WBTC to Wallet
         </button>
 
-        <div className="space-y-3">
+        <div className="space-y-4">
           {/* WBTC Address */}
           <div>
-            <label className="text-xs text-dark-500 mb-1 block">WBTC Contract Address</label>
-            <div className="flex items-center gap-2 bg-dark-900/50 rounded-xl border border-dark-600/50 p-3">
-              <code className="flex-1 text-xs text-dark-300 font-mono break-all">
+            <label className="text-[10px] uppercase tracking-wider text-text-2 font-display mb-1 block">
+              WBTC Contract Address
+            </label>
+            <div className="flex items-center gap-2 py-2 border-b border-border/30">
+              <code className="flex-1 text-xs text-text-1 font-mono break-all">
                 {MOCK_WBTC_ADDRESS}
               </code>
               <button
                 onClick={() => copyToClipboard(MOCK_WBTC_ADDRESS, "wbtc")}
-                className="text-dark-400 hover:text-dark-200 transition-colors flex-shrink-0"
+                className="text-text-2 hover:text-text-0 transition-colors flex-shrink-0"
               >
                 {copied === "wbtc" ? (
-                  <CheckCircleIcon className="w-4 h-4 text-green-400" />
+                  <CheckCircleIcon className="w-3.5 h-3.5 text-success" />
                 ) : (
-                  <ClipboardDocumentIcon className="w-4 h-4" />
+                  <ClipboardDocumentIcon className="w-3.5 h-3.5" />
                 )}
               </button>
             </div>
@@ -279,19 +278,21 @@ export default function FaucetPage() {
           {/* moonUSD Address */}
           {MOONUSD_ADDRESS && (
             <div>
-              <label className="text-xs text-dark-500 mb-1 block">moonUSD Contract Address</label>
-              <div className="flex items-center gap-2 bg-dark-900/50 rounded-xl border border-dark-600/50 p-3">
-                <code className="flex-1 text-xs text-dark-300 font-mono break-all">
+              <label className="text-[10px] uppercase tracking-wider text-text-2 font-display mb-1 block">
+                moonUSD Contract Address
+              </label>
+              <div className="flex items-center gap-2 py-2 border-b border-border/30">
+                <code className="flex-1 text-xs text-text-1 font-mono break-all">
                   {MOONUSD_ADDRESS}
                 </code>
                 <button
                   onClick={() => copyToClipboard(MOONUSD_ADDRESS, "moonusd")}
-                  className="text-dark-400 hover:text-dark-200 transition-colors flex-shrink-0"
+                  className="text-text-2 hover:text-text-0 transition-colors flex-shrink-0"
                 >
                   {copied === "moonusd" ? (
-                    <CheckCircleIcon className="w-4 h-4 text-green-400" />
+                    <CheckCircleIcon className="w-3.5 h-3.5 text-success" />
                   ) : (
-                    <ClipboardDocumentIcon className="w-4 h-4" />
+                    <ClipboardDocumentIcon className="w-3.5 h-3.5" />
                   )}
                 </button>
               </div>
@@ -301,32 +302,30 @@ export default function FaucetPage() {
       </div>
 
       {/* Manual Instructions */}
-      <div className="p-6 rounded-2xl bg-dark-800/40 border border-dark-700/30">
-        <div className="flex items-start space-x-4">
-          <div className="w-10 h-10 rounded-xl bg-primary-500/10 border border-primary-500/20 flex items-center justify-center flex-shrink-0">
-            <WalletIcon className="w-5 h-5 text-primary-400" />
-          </div>
+      <div className="border-t border-border/30 pt-8" data-animate="4">
+        <div className="flex items-start gap-4">
+          <InformationCircleIcon className="w-4 h-4 text-text-2 flex-shrink-0 mt-0.5" />
           <div>
-            <h3 className="text-sm font-semibold text-dark-200 mb-2">
+            <h3 className="text-sm font-display text-text-0 mb-2">
               How to Add Tokens Manually
             </h3>
-            <div className="space-y-2 text-sm text-dark-400 leading-relaxed">
+            <div className="space-y-1.5 text-xs text-text-2 leading-relaxed">
               <p>
-                <strong className="text-dark-300">1.</strong> Open your Starknet
+                <span className="text-text-1 font-mono">1.</span> Open your Starknet
                 wallet (Ready Wallet, Braavos, etc.)
               </p>
               <p>
-                <strong className="text-dark-300">2.</strong> Go to{" "}
-                <strong className="text-dark-300">Assets</strong> or{" "}
-                <strong className="text-dark-300">Tokens</strong> tab
+                <span className="text-text-1 font-mono">2.</span> Go to{" "}
+                <span className="text-text-1">Assets</span> or{" "}
+                <span className="text-text-1">Tokens</span> tab
               </p>
               <p>
-                <strong className="text-dark-300">3.</strong> Click{" "}
-                <strong className="text-dark-300">&quot;Add Token&quot;</strong>{" "}
-                or the <strong className="text-dark-300">+</strong> button
+                <span className="text-text-1 font-mono">3.</span> Click{" "}
+                <span className="text-text-1">&quot;Add Token&quot;</span>{" "}
+                or the <span className="text-text-1">+</span> button
               </p>
               <p>
-                <strong className="text-dark-300">4.</strong> Paste the contract
+                <span className="text-text-1 font-mono">4.</span> Paste the contract
                 address from above and confirm
               </p>
             </div>

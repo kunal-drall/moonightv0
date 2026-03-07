@@ -17,10 +17,9 @@ import {
   SparklesIcon,
   TicketIcon,
 } from "@heroicons/react/24/outline";
-import StatsCard from "@/components/StatsCard";
 
 const isMainnet = process.env.NEXT_PUBLIC_STARKNET_NETWORK === "mainnet";
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "";
 
 function getInviteStorageKey(address: string) {
   return `moonight_invite_${address}`;
@@ -82,9 +81,9 @@ const mockTransactions: Transaction[] = [
 ];
 
 const statusStyles = {
-  settled: "text-green-400 bg-green-500/10",
-  pending: "text-accent-400 bg-accent-500/10",
-  declined: "text-red-400 bg-red-500/10",
+  settled: "text-success",
+  pending: "text-accent",
+  declined: "text-danger",
 };
 
 export default function CardPage() {
@@ -105,14 +104,18 @@ export default function CardPage() {
 
   // Check localStorage for previously verified invite code
   useEffect(() => {
-    if (address) {
-      const stored = localStorage.getItem(getInviteStorageKey(address));
-      if (stored === "true") {
-        setInviteVerified(true);
+    try {
+      if (address) {
+        const stored = localStorage.getItem(getInviteStorageKey(address));
+        if (stored === "true") {
+          setInviteVerified(true);
+        } else {
+          setInviteVerified(false);
+        }
       } else {
         setInviteVerified(false);
       }
-    } else {
+    } catch {
       setInviteVerified(false);
     }
   }, [address]);
@@ -132,7 +135,9 @@ export default function CardPage() {
 
       if (res.ok && data.valid) {
         setInviteVerified(true);
-        localStorage.setItem(getInviteStorageKey(address), "true");
+        try {
+          localStorage.setItem(getInviteStorageKey(address), "true");
+        } catch { /* storage unavailable */ }
       } else {
         setInviteError(data.error || "Invalid invite code");
       }
@@ -146,37 +151,37 @@ export default function CardPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
       {/* Page Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-dark-50 mb-2">
+      <div className="mb-8" data-animate="0">
+        <h1 className="text-xl sm:text-2xl font-display font-semibold text-text-0 mb-1">
           Moonight Card
         </h1>
-        <p className="text-dark-400">
+        <p className="text-sm text-text-2">
           Spend your DeFi yield anywhere with virtual debit and credit cards
         </p>
       </div>
 
-      {/* Card Type Tabs */}
-      <div className="flex items-center space-x-1 p-1 bg-dark-800/60 border border-dark-700/50 rounded-2xl mb-8 max-w-md">
+      {/* Card Type Tabs — text style */}
+      <div className="flex items-center gap-1 border-b border-border/30 mb-10" data-animate="1">
         <button
           onClick={() => setActiveTab("debit")}
-          className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-display uppercase tracking-[0.12em] border-b-2 -mb-px transition-all ${
             activeTab === "debit"
-              ? "bg-primary-600 text-white shadow-lg shadow-primary-500/20"
-              : "text-dark-400 hover:text-dark-200"
+              ? "text-accent border-accent"
+              : "text-text-2 border-transparent hover:text-text-1"
           }`}
         >
-          <CreditCardIcon className="w-4 h-4" />
+          <CreditCardIcon className="w-3.5 h-3.5" />
           Debit Card
         </button>
         <button
           onClick={() => setActiveTab("credit")}
-          className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-display uppercase tracking-[0.12em] border-b-2 -mb-px transition-all ${
             activeTab === "credit"
-              ? "bg-primary-600 text-white shadow-lg shadow-primary-500/20"
-              : "text-dark-400 hover:text-dark-200"
+              ? "text-accent border-accent"
+              : "text-text-2 border-transparent hover:text-text-1"
           }`}
         >
-          <SparklesIcon className="w-4 h-4" />
+          <SparklesIcon className="w-3.5 h-3.5" />
           Credit Card
         </button>
       </div>
@@ -184,81 +189,85 @@ export default function CardPage() {
       {activeTab === "debit" ? (
         <>
           {/* Debit Card Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-            <StatsCard
-              title="Card Balance"
-              value="$0.00"
-              subtitle={isConnected ? "Available to spend" : "Connect wallet"}
-              icon={<BanknotesIcon className="w-5 h-5 text-green-400" />}
-              accentColor="green"
-            />
-            <StatsCard
-              title="Monthly Spent"
-              value="$0.00"
-              subtitle="This month"
-              icon={<CreditCardIcon className="w-5 h-5 text-primary-400" />}
-              accentColor="primary"
-            />
-            <StatsCard
-              title="Total Top-ups"
-              value="$0.00"
-              subtitle="Lifetime"
-              icon={<ArrowPathIcon className="w-5 h-5 text-accent-400" />}
-              accentColor="accent"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mb-10" data-animate="2">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.15em] text-text-2 font-display mb-1.5">Card Balance</p>
+              <p className="text-2xl sm:text-3xl font-mono font-semibold text-text-0 tracking-tight">$0.00</p>
+              <p className="text-xs text-text-2 mt-1">{isConnected ? "Available to spend" : "Connect wallet"}</p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.15em] text-text-2 font-display mb-1.5">Monthly Spent</p>
+              <p className="text-2xl sm:text-3xl font-mono font-semibold text-text-0 tracking-tight">$0.00</p>
+              <p className="text-xs text-text-2 mt-1">This month</p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.15em] text-text-2 font-display mb-1.5">Total Top-ups</p>
+              <p className="text-2xl sm:text-3xl font-mono font-semibold text-text-0 tracking-tight">$0.00</p>
+              <p className="text-xs text-text-2 mt-1">Lifetime</p>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
             {/* Virtual Card Visual + Actions */}
-            <div className="lg:col-span-7 space-y-6">
+            <div className="lg:col-span-7 space-y-8">
               {/* Virtual Card */}
-              <div className="card relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-primary-600/20 via-dark-800/60 to-accent-500/10" />
+              <div className="relative overflow-hidden bg-surface-1 border border-border/50 p-6" data-animate="3">
+                <div className="absolute inset-0 bg-gradient-to-br from-accent/5 via-transparent to-surface-2/30" />
                 <div className="relative">
                   <div className="flex items-center justify-between mb-8">
                     <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center">
-                        <span className="text-[10px] font-bold text-white">M</span>
-                      </div>
-                      <span className="text-sm font-semibold text-dark-200">
+                      {/* Moon logo on card */}
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="-76 -76 152 152"
+                        className="w-6 h-6 text-text-0"
+                        fill="currentColor"
+                      >
+                        <circle cx="0" cy="0" r="72" fill="none" stroke="currentColor" strokeWidth="2.5" />
+                        <clipPath id="card-moon">
+                          <circle cx="0" cy="0" r="72" />
+                        </clipPath>
+                        <circle cx="22" cy="0" r="62" fill="currentColor" clipPath="url(#card-moon)" />
+                        <circle cx="-34" cy="-25" r="3.5" fill="currentColor" />
+                      </svg>
+                      <span className="text-xs font-display tracking-[0.2em] uppercase text-text-1">
                         Moonight
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] uppercase tracking-wider text-dark-400 font-medium">
+                      <span className="text-[10px] uppercase tracking-wider text-text-2 font-display">
                         Virtual Debit
                       </span>
-                      <div className="w-8 h-5 rounded bg-gradient-to-r from-accent-400 to-accent-600" />
                     </div>
                   </div>
 
                   {isConnected ? (
                     <>
-                      <p className="text-2xl font-mono tracking-[0.2em] text-dark-200 mb-6">
+                      <p className="text-2xl font-mono tracking-[0.2em] text-text-1 mb-6">
                         •••• •••• •••• 4832
                       </p>
                       <div className="flex items-end justify-between">
                         <div>
-                          <p className="text-[10px] uppercase text-dark-500 mb-0.5">
+                          <p className="text-[10px] uppercase tracking-wider text-text-2 mb-0.5 font-display">
                             Cardholder
                           </p>
-                          <p className="text-sm text-dark-300 font-medium">
+                          <p className="text-sm text-text-1 font-mono">
                             MOONIGHT USER
                           </p>
                         </div>
                         <div>
-                          <p className="text-[10px] uppercase text-dark-500 mb-0.5">
+                          <p className="text-[10px] uppercase tracking-wider text-text-2 mb-0.5 font-display">
                             Expires
                           </p>
-                          <p className="text-sm text-dark-300 font-medium">
+                          <p className="text-sm text-text-1 font-mono">
                             12/27
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="text-[10px] uppercase text-dark-500 mb-0.5">
+                          <p className="text-[10px] uppercase tracking-wider text-text-2 mb-0.5 font-display">
                             Balance
                           </p>
-                          <p className="text-lg font-bold text-green-400">
+                          <p className="text-lg font-mono font-semibold text-accent">
                             $0.00
                           </p>
                         </div>
@@ -266,8 +275,8 @@ export default function CardPage() {
                     </>
                   ) : (
                     <div className="py-8 text-center">
-                      <LockClosedIcon className="w-8 h-8 text-dark-500 mx-auto mb-3" />
-                      <p className="text-sm text-dark-400">
+                      <LockClosedIcon className="w-6 h-6 text-text-2 mx-auto mb-3" />
+                      <p className="text-sm text-text-2">
                         Connect wallet to view card details
                       </p>
                     </div>
@@ -275,30 +284,23 @@ export default function CardPage() {
                 </div>
               </div>
 
-              {/* Invite Code Gate → KYC / Card Issuance */}
+              {/* Invite Code Gate / KYC / Card Issuance */}
               {!inviteVerified ? (
-                <div className="card">
+                <div className="border-t border-border/30 pt-8" data-animate="4">
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-accent-500/10 border border-accent-500/20 flex items-center justify-center">
-                      <TicketIcon className="w-5 h-5 text-accent-400" />
-                    </div>
-                    <div>
-                      <h3 className="text-base font-semibold text-dark-100">
-                        Invite Only Access
-                      </h3>
-                      <p className="text-xs text-dark-400">
-                        Enter your invite code to unlock the Moonight Card
-                      </p>
-                    </div>
+                    <TicketIcon className="w-4 h-4 text-accent" />
+                    <h3 className="text-sm font-display text-text-0">
+                      Invite Only Access
+                    </h3>
                   </div>
-                  <p className="text-sm text-dark-400 mb-4 leading-relaxed">
+                  <p className="text-xs text-text-2 mb-4 leading-relaxed">
                     The Moonight Card is currently in early access. Enter an
                     invite code shared via our Discord or Telegram community to
                     proceed with KYC and card issuance.
                   </p>
                   <div className="space-y-3">
-                    <div className="flex items-center bg-dark-900/50 rounded-xl border border-dark-600/50 focus-within:border-primary-500/50 transition-all">
-                      <TicketIcon className="w-4 h-4 text-dark-500 ml-4" />
+                    <div className="flex items-center border-b border-border focus-within:border-accent transition-colors">
+                      <TicketIcon className="w-3.5 h-3.5 text-text-2 mr-2" />
                       <input
                         type="text"
                         value={inviteCode}
@@ -308,12 +310,12 @@ export default function CardPage() {
                         }}
                         onKeyDown={(e) => { if (e.key === "Enter") handleVerifyInvite(); }}
                         placeholder="MOON-XXXX-XXXX"
-                        className="flex-1 bg-transparent px-3 py-3 text-sm font-mono font-medium text-dark-50 placeholder:text-dark-600 focus:outline-none tracking-wider"
+                        className="flex-1 bg-transparent py-2.5 text-sm font-mono text-text-0 placeholder:text-text-2/30 focus:outline-none tracking-wider"
                         disabled={!isConnected}
                       />
                     </div>
                     {inviteError && (
-                      <p className="text-xs text-red-400 flex items-center gap-1.5">
+                      <p className="text-xs text-danger flex items-center gap-1.5">
                         <ExclamationTriangleIcon className="w-3.5 h-3.5" />
                         {inviteError}
                       </p>
@@ -330,14 +332,14 @@ export default function CardPage() {
                         : "Verify Invite Code"}
                     </button>
                   </div>
-                  <div className="mt-4 pt-4 border-t border-dark-700/30">
-                    <p className="text-xs text-dark-500 leading-relaxed">
+                  <div className="mt-4 pt-4 border-t border-border/20">
+                    <p className="text-xs text-text-2 leading-relaxed">
                       Don&apos;t have a code? Join our{" "}
                       <a
                         href="https://discord.gg/cZa7YpyQ"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-primary-400 hover:text-primary-300 transition-colors"
+                        className="text-accent hover:text-accent/80 transition-colors"
                       >
                         Discord
                       </a>{" "}
@@ -346,7 +348,7 @@ export default function CardPage() {
                         href="https://t.me/moonight"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-primary-400 hover:text-primary-300 transition-colors"
+                        className="text-accent hover:text-accent/80 transition-colors"
                       >
                         Telegram
                       </a>{" "}
@@ -355,27 +357,27 @@ export default function CardPage() {
                   </div>
                 </div>
               ) : !showKYC ? (
-                <div className="card">
-                  <h3 className="text-base font-semibold text-dark-100 mb-3">
+                <div className="border-t border-border/30 pt-8" data-animate="4">
+                  <h3 className="text-sm font-display text-text-0 mb-3">
                     Get Your Card
                   </h3>
-                  <p className="text-sm text-dark-400 mb-4 leading-relaxed">
+                  <p className="text-xs text-text-2 mb-4 leading-relaxed">
                     Complete KYC verification through Rain.xyz to receive your
                     virtual debit card. Once verified, you can fund your card
                     with USDC{isMainnet ? "" : " (from mainnet)"} and spend
                     anywhere Visa is accepted.
                   </p>
-                  <div className="flex items-center gap-3 mb-5">
-                    <div className="flex items-center gap-2 text-xs text-dark-400">
-                      <ShieldCheckIcon className="w-4 h-4 text-green-400" />
+                  <div className="flex items-center gap-4 mb-5">
+                    <div className="flex items-center gap-1.5 text-[11px] text-text-2">
+                      <ShieldCheckIcon className="w-3.5 h-3.5 text-success" />
                       <span>KYC via Rain.xyz</span>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-dark-400">
-                      <ClockIcon className="w-4 h-4 text-accent-400" />
+                    <div className="flex items-center gap-1.5 text-[11px] text-text-2">
+                      <ClockIcon className="w-3.5 h-3.5 text-accent" />
                       <span>~5 min verification</span>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-dark-400">
-                      <CheckCircleIcon className="w-4 h-4 text-primary-400" />
+                    <div className="flex items-center gap-1.5 text-[11px] text-text-2">
+                      <CheckCircleIcon className="w-3.5 h-3.5 text-success" />
                       <span>Instant card issuance</span>
                     </div>
                   </div>
@@ -385,25 +387,23 @@ export default function CardPage() {
                     className="btn-primary text-sm"
                   >
                     {isConnected ? "Start KYC Verification" : "Connect Wallet First"}
-                    <ArrowTopRightOnSquareIcon className="w-4 h-4 ml-2" />
+                    <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5 ml-2" />
                   </button>
                 </div>
               ) : (
-                <div className="card border-primary-500/30">
+                <div className="border-t border-accent/20 pt-8" data-animate="4">
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-primary-500/10 border border-primary-500/20 flex items-center justify-center">
-                      <ShieldCheckIcon className="w-5 h-5 text-primary-400" />
-                    </div>
+                    <ShieldCheckIcon className="w-4 h-4 text-accent" />
                     <div>
-                      <h3 className="text-base font-semibold text-dark-100">
+                      <h3 className="text-sm font-display text-text-0">
                         KYC Verification
                       </h3>
-                      <p className="text-xs text-dark-400">
+                      <p className="text-[10px] text-text-2">
                         Powered by Rain.xyz
                       </p>
                     </div>
                   </div>
-                  <div className="space-y-3 mb-5">
+                  <div className="space-y-2 mb-5">
                     {[
                       { step: "1", label: "Personal Information", status: "current" },
                       { step: "2", label: "Identity Verification", status: "pending" },
@@ -411,26 +411,26 @@ export default function CardPage() {
                     ].map((item) => (
                       <div
                         key={item.step}
-                        className={`flex items-center gap-3 p-3 rounded-xl border ${
+                        className={`flex items-center gap-3 py-2.5 px-3 border-l-2 ${
                           item.status === "current"
-                            ? "bg-primary-500/5 border-primary-500/20"
-                            : "bg-dark-900/30 border-dark-700/30"
+                            ? "border-accent bg-accent/5"
+                            : "border-border/30"
                         }`}
                       >
-                        <div
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold ${
+                        <span
+                          className={`text-xs font-mono font-semibold ${
                             item.status === "current"
-                              ? "bg-primary-500 text-white"
-                              : "bg-dark-700 text-dark-400"
+                              ? "text-accent"
+                              : "text-text-2"
                           }`}
                         >
                           {item.step}
-                        </div>
+                        </span>
                         <span
                           className={`text-sm ${
                             item.status === "current"
-                              ? "text-dark-100 font-medium"
-                              : "text-dark-500"
+                              ? "text-text-0"
+                              : "text-text-2"
                           }`}
                         >
                           {item.label}
@@ -441,7 +441,7 @@ export default function CardPage() {
                   <div className="flex gap-3">
                     <button className="btn-primary text-sm flex-1">
                       Continue Verification
-                      <ArrowTopRightOnSquareIcon className="w-4 h-4 ml-2" />
+                      <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5 ml-2" />
                     </button>
                     <button
                       onClick={() => setShowKYC(false)}
@@ -454,18 +454,18 @@ export default function CardPage() {
               )}
 
               {/* Transaction History */}
-              <div className="card">
+              <div className="border-t border-border/30 pt-8" data-animate="5">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-base font-semibold text-dark-100">
+                  <h3 className="text-sm font-display text-text-0">
                     Recent Transactions
                   </h3>
-                  <button className="text-xs text-primary-400 hover:text-primary-300 transition-colors">
+                  <button className="text-[10px] text-accent hover:text-accent/80 font-display uppercase tracking-wider transition-colors">
                     View All
                   </button>
                 </div>
 
                 {isConnected ? (
-                  <div className="divide-y divide-dark-700/30">
+                  <div className="divide-y divide-border/20">
                     {mockTransactions.map((tx) => (
                       <div
                         key={tx.id}
@@ -473,40 +473,36 @@ export default function CardPage() {
                       >
                         <div className="flex items-center gap-3">
                           <div
-                            className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                            className={`w-7 h-7 flex items-center justify-center ${
                               tx.amount.startsWith("+")
-                                ? "bg-green-500/10 border border-green-500/20"
-                                : "bg-dark-700/50 border border-dark-600/30"
+                                ? "text-success"
+                                : "text-text-2"
                             }`}
                           >
                             {tx.amount.startsWith("+") ? (
-                              <ArrowPathIcon className="w-4 h-4 text-green-400" />
+                              <ArrowPathIcon className="w-4 h-4" />
                             ) : (
-                              <CreditCardIcon className="w-4 h-4 text-dark-400" />
+                              <CreditCardIcon className="w-4 h-4" />
                             )}
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-dark-200">
+                            <p className="text-sm text-text-0">
                               {tx.merchant}
                             </p>
-                            <p className="text-xs text-dark-500">{tx.date}</p>
+                            <p className="text-[10px] text-text-2 font-mono">{tx.date}</p>
                           </div>
                         </div>
                         <div className="text-right">
                           <p
-                            className={`text-sm font-medium ${
+                            className={`text-sm font-mono ${
                               tx.amount.startsWith("+")
-                                ? "text-green-400"
-                                : "text-dark-200"
+                                ? "text-success"
+                                : "text-text-0"
                             }`}
                           >
                             {tx.amount}
                           </p>
-                          <span
-                            className={`inline-block text-[10px] px-1.5 py-0.5 rounded ${
-                              statusStyles[tx.status]
-                            }`}
-                          >
+                          <span className={`text-[10px] font-mono ${statusStyles[tx.status]}`}>
                             {tx.status}
                           </span>
                         </div>
@@ -515,8 +511,8 @@ export default function CardPage() {
                   </div>
                 ) : (
                   <div className="py-8 text-center">
-                    <CreditCardIcon className="w-8 h-8 text-dark-600 mx-auto mb-2" />
-                    <p className="text-sm text-dark-500">
+                    <CreditCardIcon className="w-6 h-6 text-text-2 mx-auto mb-2" />
+                    <p className="text-xs text-text-2">
                       Connect wallet to view transactions
                     </p>
                   </div>
@@ -525,75 +521,49 @@ export default function CardPage() {
             </div>
 
             {/* Right Column: Top-up + Auto Top-up */}
-            <div className="lg:col-span-5 space-y-6">
+            <div className="lg:col-span-5 space-y-0">
               {/* Fund Card */}
-              <div className="card">
-                <h3 className="text-base font-semibold text-dark-100 mb-4">
+              <div className="pb-8 border-b border-border/30" data-animate="3">
+                <h3 className="text-sm font-display text-text-0 mb-4">
                   Fund Your Card
                 </h3>
 
                 <div className="space-y-4">
                   {/* Source Selection */}
                   <div>
-                    <label className="text-xs text-dark-400 mb-2 block">
+                    <label className="text-[10px] uppercase tracking-wider text-text-2 font-display mb-2 block">
                       Funding Source
                     </label>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="flex gap-2">
                       <button
                         onClick={() => setTopupSource("wallet")}
-                        className={`p-3 rounded-xl border text-left transition-all ${
+                        className={`flex-1 py-2.5 px-3 text-left border transition-all ${
                           topupSource === "wallet"
-                            ? "bg-primary-500/5 border-primary-500/30 ring-1 ring-primary-500/20"
-                            : "bg-dark-900/30 border-dark-700/30 hover:border-dark-600"
+                            ? "border-accent bg-accent/5"
+                            : "border-border/50 hover:border-border"
                         }`}
                       >
-                        <BanknotesIcon
-                          className={`w-5 h-5 mb-1.5 ${
-                            topupSource === "wallet"
-                              ? "text-primary-400"
-                              : "text-dark-500"
-                          }`}
-                        />
-                        <p
-                          className={`text-sm font-medium ${
-                            topupSource === "wallet"
-                              ? "text-dark-100"
-                              : "text-dark-400"
-                          }`}
-                        >
+                        <BanknotesIcon className={`w-4 h-4 mb-1 ${topupSource === "wallet" ? "text-accent" : "text-text-2"}`} />
+                        <p className={`text-xs font-display ${topupSource === "wallet" ? "text-text-0" : "text-text-2"}`}>
                           USDC Wallet
                         </p>
-                        <p className="text-[10px] text-dark-500 mt-0.5">
-                          {isMainnet
-                            ? "From connected wallet"
-                            : "Mainnet USDC required"}
+                        <p className="text-[10px] text-text-2 mt-0.5">
+                          {isMainnet ? "From connected wallet" : "Mainnet USDC required"}
                         </p>
                       </button>
                       <button
                         onClick={() => setTopupSource("vault-c")}
-                        className={`p-3 rounded-xl border text-left transition-all ${
+                        className={`flex-1 py-2.5 px-3 text-left border transition-all ${
                           topupSource === "vault-c"
-                            ? "bg-primary-500/5 border-primary-500/30 ring-1 ring-primary-500/20"
-                            : "bg-dark-900/30 border-dark-700/30 hover:border-dark-600"
+                            ? "border-accent bg-accent/5"
+                            : "border-border/50 hover:border-border"
                         }`}
                       >
-                        <BoltIcon
-                          className={`w-5 h-5 mb-1.5 ${
-                            topupSource === "vault-c"
-                              ? "text-primary-400"
-                              : "text-dark-500"
-                          }`}
-                        />
-                        <p
-                          className={`text-sm font-medium ${
-                            topupSource === "vault-c"
-                              ? "text-dark-100"
-                              : "text-dark-400"
-                          }`}
-                        >
+                        <BoltIcon className={`w-4 h-4 mb-1 ${topupSource === "vault-c" ? "text-accent" : "text-text-2"}`} />
+                        <p className={`text-xs font-display ${topupSource === "vault-c" ? "text-text-0" : "text-text-2"}`}>
                           Vault C Yield
                         </p>
-                        <p className="text-[10px] text-dark-500 mt-0.5">
+                        <p className="text-[10px] text-text-2 mt-0.5">
                           Withdraw from vmoonUSD
                         </p>
                       </button>
@@ -602,26 +572,26 @@ export default function CardPage() {
 
                   {/* Amount Input */}
                   <div>
-                    <label className="text-xs text-dark-400 mb-2 block">
+                    <label className="text-[10px] uppercase tracking-wider text-text-2 font-display mb-2 block">
                       Amount (USDC)
                     </label>
-                    <div className="flex items-center bg-dark-900/50 rounded-xl border border-dark-600/50 focus-within:border-primary-500/50 transition-all">
-                      <span className="text-dark-500 text-sm pl-4">$</span>
+                    <div className="flex items-center border-b border-border focus-within:border-accent transition-colors">
+                      <span className="text-text-2 text-sm font-mono">$</span>
                       <input
                         type="number"
                         value={topupAmount}
                         onChange={(e) => setTopupAmount(e.target.value)}
                         placeholder="0.00"
-                        className="flex-1 bg-transparent px-2 py-3 text-base font-medium text-dark-50 placeholder:text-dark-600 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="flex-1 bg-transparent px-2 py-2.5 text-base font-mono text-text-0 placeholder:text-text-2/30 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
-                      <span className="text-sm text-dark-400 pr-4">USDC</span>
+                      <span className="text-xs text-text-2 font-mono">USDC</span>
                     </div>
                     <div className="flex gap-2 mt-2">
                       {["50", "100", "250", "500"].map((amt) => (
                         <button
                           key={amt}
                           onClick={() => setTopupAmount(amt)}
-                          className="flex-1 py-1.5 rounded-lg bg-dark-700/50 border border-dark-600/30 text-xs text-dark-400 hover:text-dark-200 hover:border-dark-500 transition-all"
+                          className="flex-1 py-1 text-xs font-mono text-text-2 border border-border/50 hover:border-border hover:text-text-1 transition-all"
                         >
                           ${amt}
                         </button>
@@ -630,9 +600,9 @@ export default function CardPage() {
                   </div>
 
                   {!isMainnet && (
-                    <div className="flex items-start gap-2 p-3 rounded-xl bg-accent-500/5 border border-accent-500/20">
-                      <InformationCircleIcon className="w-4 h-4 text-accent-400 flex-shrink-0 mt-0.5" />
-                      <p className="text-xs text-accent-300/80 leading-relaxed">
+                    <div className="flex items-start gap-2 p-3 border-l-2 border-accent bg-accent/5">
+                      <InformationCircleIcon className="w-3.5 h-3.5 text-accent flex-shrink-0 mt-0.5" />
+                      <p className="text-xs text-text-2 leading-relaxed">
                         On Sepolia testnet, card funding requires mainnet USDC.
                         Bridge USDC to fund your card for real-world spending.
                       </p>
@@ -641,7 +611,7 @@ export default function CardPage() {
 
                   <button
                     disabled={!isConnected || !topupAmount}
-                    className="btn-primary w-full text-sm py-3"
+                    className="btn-primary w-full text-sm py-2.5"
                   >
                     {!isConnected
                       ? "Connect Wallet"
@@ -651,74 +621,73 @@ export default function CardPage() {
               </div>
 
               {/* Auto Top-up Settings */}
-              <div className="card">
+              <div className="py-8 border-b border-border/30" data-animate="4">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-base font-semibold text-dark-100">
+                  <h3 className="text-sm font-display text-text-0">
                     Auto Top-up
                   </h3>
                   <button
                     onClick={() => setAutoTopupEnabled(!autoTopupEnabled)}
-                    className={`relative w-11 h-6 rounded-full transition-colors ${
-                      autoTopupEnabled ? "bg-primary-600" : "bg-dark-600"
+                    className={`relative w-10 h-5 transition-colors ${
+                      autoTopupEnabled ? "bg-accent" : "bg-border"
                     }`}
                   >
                     <div
-                      className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                      className={`absolute top-0.5 w-4 h-4 bg-surface-0 transition-transform ${
                         autoTopupEnabled ? "translate-x-[22px]" : "translate-x-0.5"
                       }`}
                     />
                   </button>
                 </div>
 
-                <p className="text-xs text-dark-400 mb-4 leading-relaxed">
+                <p className="text-xs text-text-2 mb-4 leading-relaxed">
                   Automatically fund your card from Vault C when balance drops
-                  below a threshold. Withdraws vmoonUSD, swaps to USDC, and tops
-                  up your card.
+                  below a threshold.
                 </p>
 
                 <div
                   className={`space-y-4 transition-opacity ${
-                    autoTopupEnabled ? "opacity-100" : "opacity-40 pointer-events-none"
+                    autoTopupEnabled ? "opacity-100" : "opacity-30 pointer-events-none"
                   }`}
                 >
                   <div>
-                    <label className="text-xs text-dark-400 mb-1.5 block">
+                    <label className="text-[10px] uppercase tracking-wider text-text-2 font-display mb-1.5 block">
                       When balance falls below
                     </label>
-                    <div className="flex items-center bg-dark-900/50 rounded-xl border border-dark-600/50">
-                      <span className="text-dark-500 text-sm pl-4">$</span>
+                    <div className="flex items-center border-b border-border">
+                      <span className="text-text-2 text-sm font-mono">$</span>
                       <input
                         type="number"
                         value={autoTopupThreshold}
                         onChange={(e) => setAutoTopupThreshold(e.target.value)}
-                        className="flex-1 bg-transparent px-2 py-2.5 text-sm font-medium text-dark-50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="flex-1 bg-transparent px-2 py-2 text-sm font-mono text-text-0 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="text-xs text-dark-400 mb-1.5 block">
+                    <label className="text-[10px] uppercase tracking-wider text-text-2 font-display mb-1.5 block">
                       Top-up amount
                     </label>
-                    <div className="flex items-center bg-dark-900/50 rounded-xl border border-dark-600/50">
-                      <span className="text-dark-500 text-sm pl-4">$</span>
+                    <div className="flex items-center border-b border-border">
+                      <span className="text-text-2 text-sm font-mono">$</span>
                       <input
                         type="number"
                         value={autoTopupAmount}
                         onChange={(e) => setAutoTopupAmount(e.target.value)}
-                        className="flex-1 bg-transparent px-2 py-2.5 text-sm font-medium text-dark-50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="flex-1 bg-transparent px-2 py-2 text-sm font-mono text-text-0 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 text-xs text-dark-500">
-                    <ClockIcon className="w-3.5 h-3.5" />
+                  <div className="flex items-center gap-1.5 text-[10px] text-text-2 font-mono">
+                    <ClockIcon className="w-3 h-3" />
                     <span>Max 1 auto top-up per 24 hours</span>
                   </div>
 
                   <button
                     disabled={!isConnected || !autoTopupEnabled}
-                    className="btn-secondary w-full text-sm py-2.5"
+                    className="btn-secondary w-full text-sm py-2"
                   >
                     Save Auto Top-up Settings
                   </button>
@@ -726,33 +695,18 @@ export default function CardPage() {
               </div>
 
               {/* Card Features */}
-              <div className="card">
-                <h3 className="text-sm font-semibold text-dark-200 mb-3">
+              <div className="py-8" data-animate="5">
+                <h3 className="text-[11px] uppercase tracking-[0.15em] text-text-2 font-display mb-3">
                   Card Features
                 </h3>
-                <div className="space-y-2.5">
+                <div className="space-y-2">
                   {[
-                    {
-                      icon: <ShieldCheckIcon className="w-4 h-4 text-green-400" />,
-                      text: "Accepted anywhere Visa is accepted",
-                    },
-                    {
-                      icon: <BoltIcon className="w-4 h-4 text-accent-400" />,
-                      text: "Instant virtual card issuance",
-                    },
-                    {
-                      icon: <ArrowPathIcon className="w-4 h-4 text-primary-400" />,
-                      text: "Auto top-up from Vault C yield",
-                    },
-                    {
-                      icon: <LockClosedIcon className="w-4 h-4 text-dark-400" />,
-                      text: "Funds secured on-chain until spent",
-                    },
+                    { icon: <ShieldCheckIcon className="w-3.5 h-3.5 text-success" />, text: "Accepted anywhere Visa is accepted" },
+                    { icon: <BoltIcon className="w-3.5 h-3.5 text-accent" />, text: "Instant virtual card issuance" },
+                    { icon: <ArrowPathIcon className="w-3.5 h-3.5 text-accent" />, text: "Auto top-up from Vault C yield" },
+                    { icon: <LockClosedIcon className="w-3.5 h-3.5 text-text-2" />, text: "Funds secured on-chain until spent" },
                   ].map((feature) => (
-                    <div
-                      key={feature.text}
-                      className="flex items-center gap-2.5 text-xs text-dark-400"
-                    >
+                    <div key={feature.text} className="flex items-center gap-2 text-xs text-text-2">
                       {feature.icon}
                       <span>{feature.text}</span>
                     </div>
@@ -765,101 +719,76 @@ export default function CardPage() {
       ) : (
         /* Credit Card Tab - Coming Soon */
         <div className="max-w-2xl mx-auto">
-          <div className="card relative overflow-hidden text-center py-12">
-            {/* Background decoration */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[300px] bg-gradient-to-b from-primary-500/5 to-transparent rounded-full blur-3xl" />
+          <div className="text-center py-12" data-animate="2">
+            <SparklesIcon className="w-10 h-10 text-accent mx-auto mb-6" />
 
-            <div className="relative">
-              <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-primary-500/10 to-accent-500/10 border border-primary-500/20 flex items-center justify-center">
-                <SparklesIcon className="w-10 h-10 text-primary-400" />
-              </div>
+            <span className="inline-flex items-center px-3 py-1 text-[10px] font-display uppercase tracking-wider text-accent border border-accent/20 mb-4">
+              Coming Soon
+            </span>
 
-              <span className="inline-flex items-center px-3 py-1 rounded-full bg-accent-500/10 border border-accent-500/20 text-xs font-semibold text-accent-400 uppercase tracking-wider mb-4">
-                Coming Soon
-              </span>
+            <h2 className="text-xl font-display font-semibold text-text-0 mb-3">
+              Moonight Credit Card
+            </h2>
+            <p className="text-sm text-text-2 max-w-md mx-auto mb-10 leading-relaxed">
+              Borrow against your DeFi positions with an on-chain credit line.
+              Spend now, repay from vault yield. Zero liquidation risk on your
+              credit line — backed by protocol treasury.
+            </p>
 
-              <h2 className="text-2xl font-bold text-dark-50 mb-3">
-                Moonight Credit Card
-              </h2>
-              <p className="text-dark-400 max-w-md mx-auto mb-8 leading-relaxed">
-                Borrow against your DeFi positions with an on-chain credit line.
-                Spend now, repay from vault yield. Zero liquidation risk on your
-                credit line — backed by protocol treasury.
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-lg mx-auto mb-10">
+              {[
+                { title: "Credit Line", desc: "Up to $10,000 based on position value" },
+                { title: "Yield Repay", desc: "Auto-repay from Vault C yield" },
+                { title: "Rewards", desc: "Earn MOON tokens on every swipe" },
+              ].map((feature) => (
+                <div key={feature.title}>
+                  <p className="text-sm font-display text-text-0 mb-1">
+                    {feature.title}
+                  </p>
+                  <p className="text-[11px] text-text-2 leading-relaxed">
+                    {feature.desc}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex flex-col items-center gap-3">
+              <button disabled className="btn-primary text-sm opacity-50 cursor-not-allowed">
+                Available After Mainnet Launch
+              </button>
+              <p className="text-xs text-text-2">
+                Credit cards will be available once the protocol reaches
+                mainnet with sufficient TVL
               </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-lg mx-auto mb-8">
-                {[
-                  {
-                    title: "Credit Line",
-                    desc: "Up to $10,000 based on position value",
-                    icon: <BanknotesIcon className="w-5 h-5 text-green-400" />,
-                  },
-                  {
-                    title: "Yield Repay",
-                    desc: "Auto-repay from Vault C yield",
-                    icon: <ArrowPathIcon className="w-5 h-5 text-accent-400" />,
-                  },
-                  {
-                    title: "Rewards",
-                    desc: "Earn MOON tokens on every swipe",
-                    icon: <SparklesIcon className="w-5 h-5 text-primary-400" />,
-                  },
-                ].map((feature) => (
-                  <div
-                    key={feature.title}
-                    className="p-4 rounded-xl bg-dark-900/30 border border-dark-700/30"
-                  >
-                    <div className="mb-2">{feature.icon}</div>
-                    <p className="text-sm font-medium text-dark-200 mb-1">
-                      {feature.title}
-                    </p>
-                    <p className="text-[11px] text-dark-500 leading-relaxed">
-                      {feature.desc}
-                    </p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex flex-col items-center gap-3">
-                <button disabled className="btn-primary text-sm opacity-60 cursor-not-allowed">
-                  Available After Mainnet Launch
-                </button>
-                <p className="text-xs text-dark-500">
-                  Credit cards will be available once the protocol reaches
-                  mainnet with sufficient TVL
-                </p>
-              </div>
             </div>
           </div>
 
           {/* How It Will Work */}
-          <div className="mt-6 p-6 rounded-2xl bg-dark-800/40 border border-dark-700/30">
-            <div className="flex items-start space-x-4">
-              <div className="w-10 h-10 rounded-xl bg-primary-500/10 border border-primary-500/20 flex items-center justify-center flex-shrink-0">
-                <InformationCircleIcon className="w-5 h-5 text-primary-400" />
-              </div>
+          <div className="mt-8 border-t border-border/30 pt-8">
+            <div className="flex items-start gap-4">
+              <InformationCircleIcon className="w-4 h-4 text-text-2 flex-shrink-0 mt-0.5" />
               <div>
-                <h3 className="text-sm font-semibold text-dark-200 mb-2">
+                <h3 className="text-sm font-display text-text-0 mb-2">
                   How Moonight Credit Will Work
                 </h3>
-                <div className="space-y-2 text-sm text-dark-400 leading-relaxed">
+                <div className="space-y-2 text-xs text-text-2 leading-relaxed">
                   <p>
-                    <strong className="text-dark-300">1. Collateral Assessment</strong>{" "}
+                    <strong className="text-text-1">1. Collateral Assessment</strong>{" "}
                     — Your credit line is calculated based on your CDP positions,
                     vault deposits, and protocol reputation score.
                   </p>
                   <p>
-                    <strong className="text-dark-300">2. Instant Credit</strong>{" "}
+                    <strong className="text-text-1">2. Instant Credit</strong>{" "}
                     — Spend up to your credit limit anywhere Visa is accepted.
                     No upfront funding needed.
                   </p>
                   <p>
-                    <strong className="text-dark-300">3. Yield Repayment</strong>{" "}
+                    <strong className="text-text-1">3. Yield Repayment</strong>{" "}
                     — Your Vault C yield automatically repays your credit balance.
                     Or repay manually from any source.
                   </p>
                   <p>
-                    <strong className="text-dark-300">4. Safety Net</strong>{" "}
+                    <strong className="text-text-1">4. Safety Net</strong>{" "}
                     — Credit lines are backed by protocol treasury, not your
                     positions. Your CDPs stay safe regardless.
                   </p>
@@ -872,16 +801,14 @@ export default function CardPage() {
 
       {/* Risk / Info Banner (shown on debit tab) */}
       {activeTab === "debit" && (
-        <div className="mt-8 p-6 rounded-2xl bg-dark-800/40 border border-dark-700/30">
-          <div className="flex items-start space-x-4">
-            <div className="w-10 h-10 rounded-xl bg-accent-500/10 border border-accent-500/20 flex items-center justify-center flex-shrink-0">
-              <ExclamationTriangleIcon className="w-5 h-5 text-accent-400" />
-            </div>
+        <div className="mt-10 border-t border-border/30 pt-8">
+          <div className="flex items-start gap-4">
+            <ExclamationTriangleIcon className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
             <div>
-              <h3 className="text-sm font-semibold text-dark-200 mb-1">
+              <h3 className="text-sm font-display text-text-0 mb-1">
                 Important Information
               </h3>
-              <p className="text-sm text-dark-400 leading-relaxed">
+              <p className="text-xs text-text-2 leading-relaxed">
                 The Moonight debit card is powered by Rain.xyz. Card issuance
                 requires KYC verification. Funds loaded onto the card are
                 converted to fiat and held by Rain&apos;s banking partner.

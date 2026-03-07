@@ -1,11 +1,22 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Space_Grotesk, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import StarknetProvider from "@/providers/StarknetProvider";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 
-const inter = Inter({ subsets: ["latin"] });
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-space-grotesk",
+  display: "swap",
+});
+
+const ibmPlexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-ibm-plex-mono",
+  display: "swap",
+});
 
 const siteUrl = process.env.NEXT_PUBLIC_STARKNET_NETWORK === "mainnet"
   ? "https://app.moonight.fun"
@@ -106,7 +117,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${inter.className} min-h-screen bg-dark-900 text-dark-50`}
+        className={`${spaceGrotesk.variable} ${ibmPlexMono.variable} font-display min-h-screen bg-surface-0 text-text-0`}
       >
         <StarknetProvider>
           <div className="flex flex-col min-h-screen">

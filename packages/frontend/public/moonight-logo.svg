@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-76 -76 152 152" width="32" height="32">
+  <circle cx="0" cy="0" r="72" fill="none" stroke="currentColor" stroke-width="2.5"/>
+  <clipPath id="moon-clip"><circle cx="0" cy="0" r="72"/></clipPath>
+  <circle cx="22" cy="0" r="62" fill="currentColor" clip-path="url(#moon-clip)"/>
+  <circle cx="-34" cy="-25" r="3.5" fill="currentColor"/>
+</svg>

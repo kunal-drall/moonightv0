@@ -5,7 +5,6 @@ import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import {
   WalletIcon,
-  ChevronDownIcon,
   ArrowRightStartOnRectangleIcon,
   ClipboardDocumentIcon,
   CheckIcon,
@@ -50,9 +49,13 @@ export default function ConnectWallet() {
 
   const handleCopy = async () => {
     if (address) {
-      await navigator.clipboard.writeText(address);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      try {
+        await navigator.clipboard.writeText(address);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch {
+        /* clipboard unavailable */
+      }
     }
   };
 
@@ -61,35 +64,34 @@ export default function ConnectWallet() {
       <div className="relative" ref={dropdownRef}>
         <button
           onClick={() => setShowDropdown(!showDropdown)}
-          className="flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-dark-800 border border-dark-600/50 hover:border-primary-500/30 transition-all duration-200"
+          className="flex items-center gap-2 px-3 py-1.5 bg-surface-1 border border-border/50 hover:border-border transition-all duration-200"
         >
-          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          <span className="text-sm font-medium text-dark-100">
+          <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse-dot" />
+          <span className="text-xs font-mono text-text-1">
             {truncateAddress(address)}
           </span>
-          <ChevronDownIcon className="w-4 h-4 text-dark-400" />
         </button>
 
         {showDropdown && (
-          <div className="absolute right-0 mt-2 w-64 rounded-xl bg-dark-800 border border-dark-600/50 shadow-xl shadow-black/20 overflow-hidden z-50 animate-fade-in">
-            <div className="p-4 border-b border-dark-700/50">
-              <p className="text-xs text-dark-500 mb-1">Connected Address</p>
-              <p className="text-sm font-mono text-dark-200">
+          <div className="absolute right-0 mt-2 w-60 bg-surface-1 border border-border shadow-xl shadow-black/30 overflow-hidden z-50 animate-fade-up">
+            <div className="p-4 border-b border-border/50">
+              <p className="text-[10px] uppercase tracking-wider text-text-2 font-display mb-1">Connected</p>
+              <p className="text-xs font-mono text-text-1">
                 {truncateAddress(address)}
               </p>
             </div>
-            <div className="p-2">
+            <div className="p-1.5">
               <button
                 onClick={handleCopy}
-                className="w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg hover:bg-dark-700/50 transition-colors text-left"
+                className="w-full flex items-center gap-3 px-3 py-2 hover:bg-surface-2 transition-colors text-left"
               >
                 {copied ? (
-                  <CheckIcon className="w-4 h-4 text-green-500" />
+                  <CheckIcon className="w-3.5 h-3.5 text-success" />
                 ) : (
-                  <ClipboardDocumentIcon className="w-4 h-4 text-dark-400" />
+                  <ClipboardDocumentIcon className="w-3.5 h-3.5 text-text-2" />
                 )}
-                <span className="text-sm text-dark-300">
-                  {copied ? "Copied!" : "Copy Address"}
+                <span className="text-xs text-text-1">
+                  {copied ? "Copied" : "Copy Address"}
                 </span>
               </button>
               <button
@@ -97,10 +99,10 @@ export default function ConnectWallet() {
                   disconnect();
                   setShowDropdown(false);
                 }}
-                className="w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg hover:bg-dark-700/50 transition-colors text-left"
+                className="w-full flex items-center gap-3 px-3 py-2 hover:bg-surface-2 transition-colors text-left"
               >
-                <ArrowRightStartOnRectangleIcon className="w-4 h-4 text-red-400" />
-                <span className="text-sm text-red-400">Disconnect</span>
+                <ArrowRightStartOnRectangleIcon className="w-3.5 h-3.5 text-danger" />
+                <span className="text-xs text-danger">Disconnect</span>
               </button>
             </div>
           </div>
@@ -113,33 +115,37 @@ export default function ConnectWallet() {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setShowConnectors(!showConnectors)}
-        className="btn-primary text-sm"
+        className="btn-primary text-xs py-2 px-4"
       >
-        <WalletIcon className="w-4 h-4 mr-2" />
-        Connect Wallet
+        <WalletIcon className="w-3.5 h-3.5 mr-1.5" />
+        Connect
       </button>
 
       {showConnectors && (
-        <div className="absolute right-0 mt-2 w-72 rounded-xl bg-dark-800 border border-dark-600/50 shadow-xl shadow-black/20 overflow-hidden z-50 animate-fade-in">
-          <div className="p-4 border-b border-dark-700/50">
-            <h3 className="text-sm font-semibold text-dark-100">
-              Connect a Wallet
+        <div className="absolute right-0 mt-2 w-68 bg-surface-1 border border-border shadow-xl shadow-black/30 overflow-hidden z-50 animate-fade-up">
+          <div className="p-4 border-b border-border/50">
+            <h3 className="text-xs font-display uppercase tracking-wider text-text-0">
+              Connect Wallet
             </h3>
-            <p className="text-xs text-dark-500 mt-1">
-              Choose a wallet to connect to Moonight
+            <p className="text-[10px] text-text-2 mt-1">
+              Choose a wallet to connect
             </p>
           </div>
-          <div className="p-2 max-h-80 overflow-y-auto">
+          <div className="p-1.5 max-h-80 overflow-y-auto">
             {connectors.map((connector) => (
               <button
                 key={connector.id}
-                onClick={() => {
-                  connect({ connector });
+                onClick={async () => {
+                  try {
+                    connect({ connector });
+                  } catch (e) {
+                    console.error("Wallet connection failed:", e);
+                  }
                   setShowConnectors(false);
                 }}
-                className="w-full flex items-center space-x-3 px-3 py-3 rounded-lg hover:bg-dark-700/50 transition-colors text-left group"
+                className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-surface-2 transition-colors text-left group"
               >
-                <div className="w-10 h-10 rounded-xl bg-dark-700 flex items-center justify-center border border-dark-600/50 group-hover:border-primary-500/30 transition-colors overflow-hidden shrink-0">
+                <div className="w-9 h-9 bg-surface-2 border border-border/50 flex items-center justify-center group-hover:border-border transition-colors overflow-hidden shrink-0">
                   {connector.icon ? (
                     <Image
                       src={
@@ -148,19 +154,18 @@ export default function ConnectWallet() {
                           : connector.icon.dark ?? connector.icon.light
                       }
                       alt={connector.name}
-                      width={28}
-                      height={28}
-                      className="rounded-lg"
+                      width={24}
+                      height={24}
                     />
                   ) : (
-                    <WalletIcon className="w-5 h-5 text-dark-300" />
+                    <WalletIcon className="w-4 h-4 text-text-2" />
                   )}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-dark-200 group-hover:text-dark-50 transition-colors truncate">
+                  <p className="text-xs font-display text-text-1 group-hover:text-text-0 transition-colors truncate">
                     {connector.name}
                   </p>
-                  <p className="text-xs text-dark-500 truncate">
+                  <p className="text-[10px] text-text-2 truncate">
                     {WALLET_META[connector.id]?.label ?? "Starknet wallet"}
                   </p>
                 </div>
@@ -168,9 +173,9 @@ export default function ConnectWallet() {
             ))}
             {connectors.length === 0 && (
               <div className="px-3 py-6 text-center">
-                <p className="text-sm text-dark-400">No wallets detected</p>
-                <p className="text-xs text-dark-500 mt-1">
-                  Install Ready Wallet or Braavos to continue
+                <p className="text-xs text-text-2">No wallets detected</p>
+                <p className="text-[10px] text-text-2 mt-1">
+                  Install Ready Wallet or Braavos
                 </p>
               </div>
             )}

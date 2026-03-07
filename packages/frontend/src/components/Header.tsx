@@ -16,49 +16,70 @@ const navLinks = [
   ...(!isMainnet ? [{ name: "Faucet", href: "/faucet" }] : []),
 ];
 
+function MoonLogo({ className = "w-7 h-7" }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="-76 -76 152 152"
+      className={className}
+      fill="currentColor"
+    >
+      <circle cx="0" cy="0" r="72" fill="none" stroke="currentColor" strokeWidth="2.5" />
+      <clipPath id="hdr-moon">
+        <circle cx="0" cy="0" r="72" />
+      </clipPath>
+      <circle cx="22" cy="0" r="62" fill="currentColor" clipPath="url(#hdr-moon)" />
+      <circle cx="-34" cy="-25" r="3.5" fill="currentColor" />
+    </svg>
+  );
+}
+
 export default function Header() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [privacyMode, setPrivacyMode] = useState(false);
 
   useEffect(() => {
-    setPrivacyMode(localStorage.getItem("moonight-privacy") === "true");
+    try {
+      setPrivacyMode(localStorage.getItem("moonight-privacy") === "true");
+    } catch { /* storage unavailable */ }
   }, []);
 
   const togglePrivacy = () => {
     const next = !privacyMode;
     setPrivacyMode(next);
-    localStorage.setItem("moonight-privacy", String(next));
+    try {
+      localStorage.setItem("moonight-privacy", String(next));
+    } catch { /* storage unavailable */ }
   };
 
   return (
-    <header className="sticky top-0 z-40 border-b border-dark-700/50 bg-dark-900/80 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-border/30 bg-surface-0/80 backdrop-blur-xl">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex items-center justify-between h-[52px]">
           {/* Logo */}
-          <Link href="/" className="flex items-center space-x-3 group">
-            <div className="relative w-8 h-8">
-              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary-500 to-accent-500 group-hover:from-primary-400 group-hover:to-accent-400 transition-all duration-300" />
-              <div className="absolute inset-[3px] rounded-full bg-dark-900 flex items-center justify-center">
-                <span className="text-xs font-bold gradient-text">M</span>
-              </div>
+          <Link href="/" className="flex items-center gap-3 group">
+            <div className="text-text-0 animate-moon-glow">
+              <MoonLogo className="w-6 h-6" />
             </div>
-            <span className="text-lg font-bold text-dark-50 hidden sm:block">
+            <span className="text-xs font-display font-light tracking-[0.25em] uppercase text-text-0 hidden sm:block">
               Moonight
             </span>
             {isMainnet ? (
-              <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-md bg-accent-500/10 border border-accent-500/20 text-[10px] font-semibold text-accent-400 uppercase tracking-wider">
+              <span className="hidden sm:inline-flex items-center gap-1 text-[10px] text-accent font-display tracking-wider uppercase">
+                <span className="w-1 h-1 rounded-full bg-accent" />
                 Beta
               </span>
             ) : (
-              <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-md bg-primary-500/10 border border-primary-500/20 text-[10px] font-medium text-primary-400 uppercase tracking-wider">
+              <span className="hidden sm:inline-flex items-center gap-1 text-[10px] text-text-2 font-display tracking-wider uppercase">
+                <span className="w-1 h-1 rounded-full bg-text-2" />
                 Testnet
               </span>
             )}
           </Link>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center space-x-1">
+          <nav className="hidden md:flex items-center gap-1">
             {navLinks.map((link) => {
               const isActive =
                 pathname === link.href ||
@@ -67,10 +88,10 @@ export default function Header() {
                 <Link
                   key={link.name}
                   href={link.href}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  className={`px-3 py-1.5 text-[11px] uppercase tracking-[0.12em] font-display transition-all duration-200 ${
                     isActive
-                      ? "bg-dark-800 text-dark-50 shadow-sm"
-                      : "text-dark-400 hover:text-dark-200 hover:bg-dark-800/50"
+                      ? "text-text-0 border-b border-accent"
+                      : "text-text-2 hover:text-text-1"
                   }`}
                 >
                   {link.name}
@@ -80,27 +101,27 @@ export default function Header() {
           </nav>
 
           {/* Right Section */}
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center gap-2">
             {/* Privacy Mode Toggle */}
             <button
               onClick={togglePrivacy}
-              className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-all ${
+              className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-[10px] uppercase tracking-wider font-display border transition-all duration-200 ${
                 privacyMode
-                  ? "text-green-400 bg-green-500/10 border-green-500/20 hover:bg-green-500/15"
-                  : "text-dark-400 bg-dark-800/50 border-dark-700/50 hover:text-dark-200 hover:border-dark-600"
+                  ? "text-success bg-success/5 border-success/20 hover:bg-success/10"
+                  : "text-text-2 bg-transparent border-border/50 hover:text-text-1 hover:border-border"
               }`}
               title={privacyMode ? "Privacy: Enhanced (powered by S-two)" : "Enable privacy mode"}
             >
-              <ShieldCheckIcon className="w-3.5 h-3.5" />
+              <ShieldCheckIcon className="w-3 h-3" />
               {privacyMode ? "Private" : "Privacy"}
             </button>
 
-            {/* Network switcher link */}
+            {/* Network switcher */}
             <a
               href={isMainnet ? "https://sepolia.moonight.fun" : "https://app.moonight.fun"}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs text-dark-400 hover:text-dark-200 bg-dark-800/50 rounded-lg border border-dark-700/50 hover:border-dark-600 transition-all"
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-[10px] uppercase tracking-wider font-display text-text-2 border border-border/50 hover:text-text-1 hover:border-border transition-all duration-200"
             >
-              <div className={`w-1.5 h-1.5 rounded-full ${isMainnet ? "bg-accent-400" : "bg-primary-400"}`} />
+              <span className={`w-1 h-1 rounded-full ${isMainnet ? "bg-accent" : "bg-success"}`} />
               {isMainnet ? "Mainnet" : "Sepolia"}
             </a>
 
@@ -109,7 +130,7 @@ export default function Header() {
             {/* Mobile Menu Toggle */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 rounded-lg text-dark-400 hover:text-dark-200 hover:bg-dark-800/50 transition-colors"
+              className="md:hidden p-2 text-text-2 hover:text-text-0 transition-colors"
             >
               {mobileMenuOpen ? (
                 <XMarkIcon className="w-5 h-5" />
@@ -122,8 +143,8 @@ export default function Header() {
 
         {/* Mobile Navigation */}
         {mobileMenuOpen && (
-          <nav className="md:hidden py-4 border-t border-dark-700/50 animate-fade-in">
-            <div className="flex flex-col space-y-1">
+          <nav className="md:hidden py-4 border-t border-border/30 animate-fade-up">
+            <div className="flex flex-col gap-1">
               {navLinks.map((link) => {
                 const isActive =
                   pathname === link.href ||
@@ -133,23 +154,23 @@ export default function Header() {
                     key={link.name}
                     href={link.href}
                     onClick={() => setMobileMenuOpen(false)}
-                    className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    className={`px-3 py-2.5 text-xs uppercase tracking-[0.12em] font-display transition-all duration-200 ${
                       isActive
-                        ? "bg-dark-800 text-dark-50"
-                        : "text-dark-400 hover:text-dark-200 hover:bg-dark-800/50"
+                        ? "text-text-0 border-l-2 border-accent"
+                        : "text-text-2 hover:text-text-1"
                     }`}
                   >
                     {link.name}
                   </Link>
                 );
               })}
-              <div className="pt-2 border-t border-dark-700/50">
+              <div className="pt-2 mt-2 border-t border-border/30">
                 <a
                   href={isMainnet ? "https://sepolia.moonight.fun" : "https://app.moonight.fun"}
-                  className="flex items-center gap-2 px-4 py-2.5 text-sm text-dark-400 hover:text-dark-200"
+                  className="flex items-center gap-2 px-3 py-2.5 text-xs text-text-2 hover:text-text-1 font-display uppercase tracking-wider"
                 >
-                  <div className={`w-1.5 h-1.5 rounded-full ${isMainnet ? "bg-primary-400" : "bg-accent-400"}`} />
-                  Switch to {isMainnet ? "Sepolia Testnet" : "Mainnet Beta"}
+                  <span className={`w-1 h-1 rounded-full ${isMainnet ? "bg-success" : "bg-accent"}`} />
+                  Switch to {isMainnet ? "Sepolia" : "Mainnet"}
                 </a>
               </div>
             </div>

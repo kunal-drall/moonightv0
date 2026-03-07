@@ -3,25 +3,16 @@
 import { useState } from "react";
 import { useAccount } from "@starknet-react/core";
 import {
-  ShieldCheckIcon,
-  BoltIcon,
   ArrowRightIcon,
-  ChartBarIcon,
-  LockClosedIcon,
-  ClockIcon,
-  ExclamationTriangleIcon,
   InformationCircleIcon,
-  CheckBadgeIcon,
-  FireIcon,
+  ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
-import StatsCard from "@/components/StatsCard";
 
 interface Vault {
   id: string;
   name: string;
   subtitle: string;
   description: string;
-  icon: React.ReactNode;
   apy: string;
   apyRange?: string;
   tvl: string;
@@ -30,9 +21,6 @@ interface Vault {
   capacityUsed: number;
   riskLevel: "Low" | "Medium" | "High";
   strategy: string[];
-  gradient: string;
-  iconBg: string;
-  accentColor: string;
   features: string[];
   status: "Active" | "Coming Soon";
 }
@@ -44,7 +32,6 @@ const vaults: Vault[] = [
     subtitle: "Delta-Neutral Strategy",
     description:
       "Earn stable yield through a hedged BTC position. The protocol simultaneously holds spot BTC and opens a short perpetual position, capturing funding rate yield while neutralizing price exposure.",
-    icon: <ShieldCheckIcon className="w-7 h-7" />,
     apy: "5-12%",
     apyRange: "Est. APY range",
     tvl: "--",
@@ -57,9 +44,6 @@ const vaults: Vault[] = [
       "Funding rate harvesting",
       "Auto-compounding",
     ],
-    gradient: "from-accent-500 to-amber-600",
-    iconBg: "bg-accent-500/10 border-accent-500/20",
-    accentColor: "accent",
     features: [
       "Delta-neutral exposure",
       "Auto-rebalancing",
@@ -74,7 +58,6 @@ const vaults: Vault[] = [
     subtitle: "Leveraged BTC Accumulation",
     description:
       "Amplify your BTC exposure through recursive CDP loops. Deposit BTC, mint moonUSD, swap back to BTC, and repeat — achieving up to 3x leveraged long exposure with automated deleveraging protection.",
-    icon: <FireIcon className="w-7 h-7" />,
     apy: "Variable",
     apyRange: "BTC upside x3",
     tvl: "--",
@@ -87,9 +70,6 @@ const vaults: Vault[] = [
       "Up to 3x leverage",
       "Auto-deleverage protection",
     ],
-    gradient: "from-red-500 to-orange-600",
-    iconBg: "bg-red-500/10 border-red-500/20",
-    accentColor: "red",
     features: [
       "Amplified BTC gains",
       "Adjustable leverage",
@@ -104,7 +84,6 @@ const vaults: Vault[] = [
     subtitle: "Yield Optimizer",
     description:
       "Maximize returns on your moonUSD through curated DeFi yield strategies. Allocates across lending protocols, liquidity pools, and structured products for optimized risk-adjusted returns.",
-    icon: <BoltIcon className="w-7 h-7" />,
     apy: "8-25%",
     apyRange: "Est. APY range",
     tvl: "--",
@@ -117,9 +96,6 @@ const vaults: Vault[] = [
       "Yield aggregation",
       "Smart rebalancing",
     ],
-    gradient: "from-green-500 to-emerald-600",
-    iconBg: "bg-green-500/10 border-green-500/20",
-    accentColor: "green",
     features: [
       "Diversified strategies",
       "Auto-compounding",
@@ -134,7 +110,6 @@ const vaults: Vault[] = [
     subtitle: "Covered Call + PT/YT",
     description:
       "Earn premium yield by selling covered calls on your BTC. Deposit BTC, receive Principal Tokens (PT) and Yield Tokens (YT). Trade yield separately from principal — Pendle-style tokenization on Starknet.",
-    icon: <ChartBarIcon className="w-7 h-7" />,
     apy: "12-30%",
     apyRange: "Est. APY range",
     tvl: "--",
@@ -147,9 +122,6 @@ const vaults: Vault[] = [
       "PT/YT tokenization",
       "Weekly epoch settlement",
     ],
-    gradient: "from-purple-500 to-indigo-600",
-    iconBg: "bg-purple-500/10 border-purple-500/20",
-    accentColor: "primary",
     features: [
       "Premium income stream",
       "Tradeable yield tokens",
@@ -160,10 +132,16 @@ const vaults: Vault[] = [
   },
 ];
 
-const riskColors = {
-  Low: "text-green-400 bg-green-500/10 border-green-500/20",
-  Medium: "text-accent-400 bg-accent-500/10 border-accent-500/20",
-  High: "text-red-400 bg-red-500/10 border-red-500/20",
+const riskDotColor = {
+  Low: "bg-success",
+  Medium: "bg-accent",
+  High: "bg-danger",
+};
+
+const riskTextColor = {
+  Low: "text-success",
+  Medium: "text-accent",
+  High: "text-danger",
 };
 
 export default function VaultsPage() {
@@ -175,134 +153,115 @@ export default function VaultsPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
       {/* Page Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-dark-50 mb-2">
+      <div className="mb-10" data-animate="0">
+        <h1 className="text-xl sm:text-2xl font-display font-semibold text-text-0 mb-1">
           Vaults
         </h1>
-        <p className="text-dark-400">
+        <p className="text-sm text-text-2">
           Deposit moonUSD into yield-generating vaults with different risk
           profiles
         </p>
       </div>
 
       {/* Global Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
-        <StatsCard
-          title="Total Vault TVL"
-          value="--"
-          subtitle="Vaults launching soon"
-          icon={<ChartBarIcon className="w-5 h-5 text-primary-400" />}
-          accentColor="primary"
-        />
-        <StatsCard
-          title="Vault Types"
-          value="4"
-          subtitle="Delta-neutral, Leverage, Yield, Covered Call"
-          icon={<FireIcon className="w-5 h-5 text-accent-400" />}
-          accentColor="accent"
-        />
-        <StatsCard
-          title="Your Deposits"
-          value="$0.00"
-          subtitle="Connect wallet to view"
-          icon={<LockClosedIcon className="w-5 h-5 text-green-400" />}
-          accentColor="green"
-        />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mb-12 pb-10 border-b border-border/30" data-animate="1">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.15em] text-text-2 font-display mb-1.5">
+            Total Vault TVL
+          </p>
+          <p className="text-2xl sm:text-3xl font-mono font-semibold text-text-0 tracking-tight">
+            --
+          </p>
+          <p className="text-xs text-text-2 mt-1">Vaults launching soon</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.15em] text-text-2 font-display mb-1.5">
+            Vault Types
+          </p>
+          <p className="text-2xl sm:text-3xl font-mono font-semibold text-text-0 tracking-tight">
+            4
+          </p>
+          <p className="text-xs text-text-2 mt-1">Delta-neutral, Leverage, Yield, Covered Call</p>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.15em] text-text-2 font-display mb-1.5">
+            Your Deposits
+          </p>
+          <p className="text-2xl sm:text-3xl font-mono font-semibold text-text-0 tracking-tight">
+            $0.00
+          </p>
+          <p className="text-xs text-text-2 mt-1">Connect wallet to view</p>
+        </div>
       </div>
 
-      {/* Vault Cards */}
-      <div className="space-y-6">
-        {vaults.map((vault) => (
-          <div key={vault.id} className="card-hover relative overflow-hidden">
-            {/* Top gradient bar */}
-            <div
-              className={`absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r ${vault.gradient}`}
-            />
-
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {/* Vault Rows */}
+      <div>
+        {vaults.map((vault, i) => (
+          <div
+            key={vault.id}
+            className="border-b border-border/20 py-8 first:pt-0 last:border-b-0"
+            data-animate={String(i + 2)}
+          >
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10">
               {/* Vault Info - Left */}
               <div className="lg:col-span-7">
-                <div className="flex items-start space-x-4 mb-4">
-                  <div
-                    className={`w-14 h-14 rounded-2xl ${vault.iconBg} border flex items-center justify-center flex-shrink-0`}
-                  >
-                    <div className="text-dark-300">{vault.icon}</div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center space-x-3 mb-1">
-                      <h2 className="text-xl font-bold text-dark-50">
-                        {vault.name}
-                      </h2>
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-md border text-xs font-medium ${
-                          riskColors[vault.riskLevel]
-                        }`}
-                      >
-                        {vault.riskLevel} Risk
-                      </span>
-                      {vault.status === "Coming Soon" ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-dark-700/50 border border-dark-600/30 text-xs text-dark-400">
-                          Coming Soon
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center space-x-1 text-xs text-green-400">
-                          <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                          <span>Active</span>
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-dark-400 font-medium mb-2">
-                      {vault.subtitle}
-                    </p>
-                    <p className="text-sm text-dark-500 leading-relaxed">
-                      {vault.description}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Strategy Tags */}
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {vault.strategy.map((s) => (
-                    <span
-                      key={s}
-                      className="inline-flex items-center px-2.5 py-1 rounded-lg bg-dark-700/50 border border-dark-600/30 text-xs text-dark-400"
-                    >
-                      {s}
+                <div className="flex items-center gap-3 mb-2">
+                  <h2 className="text-lg font-display font-semibold text-text-0">
+                    {vault.name}
+                  </h2>
+                  <span className="text-xs font-display text-text-2">
+                    {vault.subtitle}
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`w-1.5 h-1.5 rounded-full ${riskDotColor[vault.riskLevel]}`} />
+                    <span className={`text-[10px] font-display uppercase tracking-wider ${riskTextColor[vault.riskLevel]}`}>
+                      {vault.riskLevel} Risk
                     </span>
-                  ))}
+                  </div>
+                  {vault.status === "Coming Soon" && (
+                    <span className="text-[10px] font-display uppercase tracking-wider text-text-2">
+                      Coming Soon
+                    </span>
+                  )}
                 </div>
 
-                {/* Features List */}
-                <div className="grid grid-cols-2 gap-2">
+                <p className="text-sm text-text-2 leading-relaxed mb-4 max-w-2xl">
+                  {vault.description}
+                </p>
+
+                {/* Strategy — comma-separated */}
+                <p className="text-xs text-text-2 mb-3">
+                  <span className="text-text-1">Strategy:</span>{" "}
+                  {vault.strategy.join(" · ")}
+                </p>
+
+                {/* Features */}
+                <div className="flex flex-wrap gap-x-4 gap-y-1">
                   {vault.features.map((feature) => (
-                    <div
-                      key={feature}
-                      className="flex items-center space-x-2 text-xs text-dark-400"
-                    >
-                      <CheckBadgeIcon className="w-3.5 h-3.5 text-dark-500 flex-shrink-0" />
-                      <span>{feature}</span>
-                    </div>
+                    <span key={feature} className="text-[11px] text-text-2">
+                      {feature}
+                    </span>
                   ))}
                 </div>
               </div>
 
               {/* Vault Stats + Deposit - Right */}
-              <div className="lg:col-span-5 lg:border-l lg:border-dark-700/50 lg:pl-6">
+              <div className="lg:col-span-5 lg:border-l lg:border-border/20 lg:pl-8">
                 {/* Key Metrics */}
-                <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="grid grid-cols-2 gap-6 mb-6">
                   <div>
-                    <p className="text-xs text-dark-500 mb-1">APY</p>
-                    <p className="text-2xl font-bold text-green-400">
+                    <p className="text-[10px] uppercase tracking-wider text-text-2 font-display mb-1">APY</p>
+                    <p className="text-2xl font-mono font-semibold text-success">
                       {vault.apy}
                     </p>
-                    <p className="text-xs text-dark-500">{vault.apyRange}</p>
+                    <p className="text-[10px] font-mono text-text-2">{vault.apyRange}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-dark-500 mb-1">TVL</p>
-                    <p className="text-2xl font-bold text-dark-100">
+                    <p className="text-[10px] uppercase tracking-wider text-text-2 font-display mb-1">TVL</p>
+                    <p className="text-2xl font-mono font-semibold text-text-0">
                       {vault.tvl}
                     </p>
-                    <p className="text-xs text-dark-500">
+                    <p className="text-[10px] font-mono text-text-2">
                       of {vault.capacity}
                     </p>
                   </div>
@@ -311,41 +270,41 @@ export default function VaultsPage() {
                 {/* Capacity Bar */}
                 <div className="mb-6">
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs text-dark-500">
-                      Vault Capacity
+                    <span className="text-[10px] text-text-2 font-display uppercase tracking-wider">
+                      Capacity
                     </span>
-                    <span className="text-xs text-dark-400 font-medium">
+                    <span className="text-[10px] font-mono text-text-2">
                       {vault.capacityUsed}%
                     </span>
                   </div>
-                  <div className="w-full h-2 rounded-full bg-dark-700 overflow-hidden">
+                  <div className="w-full h-[2px] bg-border/30 overflow-hidden">
                     <div
-                      className={`h-full rounded-full bg-gradient-to-r ${vault.gradient} transition-all duration-500`}
+                      className="h-full bg-accent transition-all duration-500"
                       style={{ width: `${vault.capacityUsed}%` }}
                     />
                   </div>
                 </div>
 
-                {/* Deposit/Withdraw Tabs */}
+                {/* Deposit/Withdraw */}
                 {selectedVault === vault.id ? (
-                  <div className="animate-fade-in">
-                    <div className="flex items-center space-x-1 p-1 bg-dark-900/50 rounded-xl mb-4">
+                  <div className="animate-fade-up">
+                    <div className="flex items-center gap-1 border-b border-border/30 mb-4">
                       <button
                         onClick={() => setActiveTab("deposit")}
-                        className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
+                        className={`px-3 py-2 text-xs font-display uppercase tracking-wider border-b-2 -mb-px transition-all ${
                           activeTab === "deposit"
-                            ? "bg-dark-700 text-dark-50"
-                            : "text-dark-500 hover:text-dark-300"
+                            ? "text-accent border-accent"
+                            : "text-text-2 border-transparent hover:text-text-1"
                         }`}
                       >
                         Deposit
                       </button>
                       <button
                         onClick={() => setActiveTab("withdraw")}
-                        className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
+                        className={`px-3 py-2 text-xs font-display uppercase tracking-wider border-b-2 -mb-px transition-all ${
                           activeTab === "withdraw"
-                            ? "bg-dark-700 text-dark-50"
-                            : "text-dark-500 hover:text-dark-300"
+                            ? "text-accent border-accent"
+                            : "text-text-2 border-transparent hover:text-text-1"
                         }`}
                       >
                         Withdraw
@@ -353,22 +312,22 @@ export default function VaultsPage() {
                     </div>
 
                     <div className="space-y-3">
-                      <div className="flex items-center bg-dark-900/50 rounded-xl border border-dark-600/50 focus-within:border-primary-500/50 transition-all">
+                      <div className="flex items-center border-b border-border focus-within:border-accent transition-colors">
                         <input
                           type="number"
                           value={depositAmount}
                           onChange={(e) => setDepositAmount(e.target.value)}
                           placeholder="0.00"
-                          className="flex-1 bg-transparent px-4 py-3 text-base font-medium text-dark-50 placeholder:text-dark-600 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          className="flex-1 bg-transparent py-2.5 text-base font-mono text-text-0 placeholder:text-text-2/30 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
-                        <span className="text-sm text-dark-400 px-4">
+                        <span className="text-xs text-text-2 pl-3">
                           moonUSD
                         </span>
                       </div>
 
                       <button
                         disabled={!isConnected || !depositAmount}
-                        className="btn-primary w-full text-sm py-3"
+                        className="btn-primary w-full text-sm py-2.5"
                       >
                         {!isConnected
                           ? "Connect Wallet"
@@ -382,7 +341,7 @@ export default function VaultsPage() {
                           setSelectedVault(null);
                           setDepositAmount("");
                         }}
-                        className="w-full text-center text-xs text-dark-500 hover:text-dark-300 transition-colors py-1"
+                        className="w-full text-center text-xs text-text-2 hover:text-text-1 transition-colors py-1"
                       >
                         Cancel
                       </button>
@@ -390,16 +349,16 @@ export default function VaultsPage() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between p-3 rounded-xl bg-dark-900/30 border border-dark-700/30">
+                    <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-xs text-dark-500">Your Deposit</p>
-                        <p className="text-sm font-medium text-dark-200">
+                        <p className="text-[10px] text-text-2 font-display uppercase tracking-wider">Your Deposit</p>
+                        <p className="text-sm font-mono text-text-0">
                           {vault.deposited}
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs text-dark-500">Earned</p>
-                        <p className="text-sm font-medium text-green-400">
+                        <p className="text-[10px] text-text-2 font-display uppercase tracking-wider">Earned</p>
+                        <p className="text-sm font-mono text-success">
                           $0.00
                         </p>
                       </div>
@@ -408,7 +367,7 @@ export default function VaultsPage() {
                     <button
                       onClick={() => vault.status !== "Coming Soon" && setSelectedVault(vault.id)}
                       disabled={vault.status === "Coming Soon"}
-                      className={`w-full text-sm py-3 ${vault.status === "Coming Soon" ? "btn-secondary opacity-60 cursor-not-allowed" : "btn-primary"}`}
+                      className={`w-full text-sm py-2.5 ${vault.status === "Coming Soon" ? "btn-secondary opacity-50 cursor-not-allowed" : "btn-primary"}`}
                     >
                       {vault.status === "Coming Soon"
                         ? "Coming Soon"
@@ -423,17 +382,15 @@ export default function VaultsPage() {
         ))}
       </div>
 
-      {/* Info Banner */}
-      <div className="mt-10 p-6 rounded-2xl bg-dark-800/40 border border-dark-700/30">
-        <div className="flex items-start space-x-4">
-          <div className="w-10 h-10 rounded-xl bg-primary-500/10 border border-primary-500/20 flex items-center justify-center flex-shrink-0">
-            <InformationCircleIcon className="w-5 h-5 text-primary-400" />
-          </div>
+      {/* Info Section */}
+      <div className="mt-12 border-t border-border/30 pt-10 space-y-6">
+        <div className="flex items-start gap-4">
+          <InformationCircleIcon className="w-4 h-4 text-text-2 flex-shrink-0 mt-0.5" />
           <div>
-            <h3 className="text-sm font-semibold text-dark-200 mb-1">
+            <h3 className="text-sm font-display text-text-0 mb-1">
               How Vaults Work
             </h3>
-            <p className="text-sm text-dark-400 leading-relaxed">
+            <p className="text-xs text-text-2 leading-relaxed">
               Deposit your moonUSD into vaults to earn yield. Vault A uses a
               delta-neutral strategy (long spot BTC + short perp) to harvest
               funding rates with minimal price exposure. Vault C aggregates
@@ -443,15 +400,13 @@ export default function VaultsPage() {
           </div>
         </div>
 
-        <div className="mt-4 flex items-start space-x-4">
-          <div className="w-10 h-10 rounded-xl bg-accent-500/10 border border-accent-500/20 flex items-center justify-center flex-shrink-0">
-            <ExclamationTriangleIcon className="w-5 h-5 text-accent-400" />
-          </div>
+        <div className="flex items-start gap-4">
+          <ExclamationTriangleIcon className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
           <div>
-            <h3 className="text-sm font-semibold text-dark-200 mb-1">
+            <h3 className="text-sm font-display text-text-0 mb-1">
               Risk Disclosure
             </h3>
-            <p className="text-sm text-dark-400 leading-relaxed">
+            <p className="text-xs text-text-2 leading-relaxed">
               All vaults carry risk including smart contract risk, strategy
               risk, and market risk. Past performance does not guarantee future
               results. APY figures are variable and subject to change. Only
