@@ -11,6 +11,10 @@ import {
 } from "@heroicons/react/24/outline";
 import { Contract, cairo, RpcProvider } from "starknet";
 import { ABIS, CONTRACT_ADDRESSES } from "@/hooks/useMoonightContracts";
+import { useUnifiedWallet } from "@/hooks/useStarkzapWallet";
+import { WBTC as WBTC_TOKEN } from "@/lib/tokens";
+import { Amount } from "starkzap";
+import type { Address } from "starkzap";
 
 const EXPLORER_BASE = "https://sepolia.voyager.online";
 const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || "https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_8/demo";
@@ -121,7 +125,7 @@ function getHealthFactorBarColor(hf: number): string {
 }
 
 export default function MintPage() {
-  const { address, account, isConnected } = useAccount();
+  const { address, account, szWallet, isConnected, source } = useUnifiedWallet();
   const BTC_PRICE = useLiveBtcPrice(90000);
   const [collateralAmount, setCollateralAmount] = useState<string>("");
   const [borrowAmount, setBorrowAmount] = useState<string>("");
@@ -227,23 +231,50 @@ export default function MintPage() {
 
       if (collateralSats <= BigInt(0) || mintWei <= BigInt(0)) return;
 
-      const wbtc = new Contract({ abi: ABIS.erc20, address: CONTRACT_ADDRESSES.mockWbtc, providerOrAccount: account });
-      const cdpManager = new Contract({ abi: ABIS.cdpManager, address: CONTRACT_ADDRESSES.cdpManager, providerOrAccount: account });
+      // Starkzap path: use tx builder for batched gasless execution
+      if (szWallet && source === "starkzap") {
+        const approveAmount = Amount.fromRaw(collateralSats, WBTC_TOKEN);
+        const cdpAddr = CONTRACT_ADDRESSES.cdpManager as Address;
+        const { low: cLow, high: cHigh } = cairo.uint256(collateralSats);
+        const { low: mLow, high: mHigh } = cairo.uint256(mintWei);
+        const { low: rLow, high: rHigh } = cairo.uint256(rateBigInt);
 
-      const approveCall = wbtc.populate("approve", {
-        spender: CONTRACT_ADDRESSES.cdpManager,
-        amount: cairo.uint256(collateralSats),
-      });
+        const tx = await szWallet
+          .tx()
+          .approve(WBTC_TOKEN, cdpAddr, approveAmount)
+          .add({
+            contractAddress: cdpAddr,
+            entrypoint: "open_position",
+            calldata: [
+              "0x57425443", // felt252 for "WBTC"
+              cLow.toString(), cHigh.toString(),
+              mLow.toString(), mHigh.toString(),
+              rLow.toString(), rHigh.toString(),
+            ],
+          })
+          .send();
 
-      const openCall = cdpManager.populate("open_position", {
-        collateral_type: "WBTC",
-        collateral_amount: cairo.uint256(collateralSats),
-        mint_amount: cairo.uint256(mintWei),
-        interest_rate: cairo.uint256(rateBigInt),
-      });
+        setTxHash(tx.hash);
+      } else {
+        // Standard starknet-react path (Braavos/Ready wallets)
+        const wbtc = new Contract({ abi: ABIS.erc20, address: CONTRACT_ADDRESSES.mockWbtc, providerOrAccount: account });
+        const cdpManager = new Contract({ abi: ABIS.cdpManager, address: CONTRACT_ADDRESSES.cdpManager, providerOrAccount: account });
 
-      const result = await account.execute([approveCall, openCall]);
-      setTxHash(result.transaction_hash);
+        const approveCall = wbtc.populate("approve", {
+          spender: CONTRACT_ADDRESSES.cdpManager,
+          amount: cairo.uint256(collateralSats),
+        });
+
+        const openCall = cdpManager.populate("open_position", {
+          collateral_type: "WBTC",
+          collateral_amount: cairo.uint256(collateralSats),
+          mint_amount: cairo.uint256(mintWei),
+          interest_rate: cairo.uint256(rateBigInt),
+        });
+
+        const result = await account!.execute([approveCall, openCall]);
+        setTxHash(result.transaction_hash);
+      }
     } catch (e: any) {
       console.error("Mint failed:", e);
       setError(getUserFriendlyError(e));
@@ -251,7 +282,7 @@ export default function MintPage() {
       mintingRef.current = false;
       setMinting(false);
     }
-  }, [address, account, collateralAmount, borrowAmount, selectedRate, BTC_PRICE]);
+  }, [address, account, szWallet, source, collateralAmount, borrowAmount, selectedRate, BTC_PRICE]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">

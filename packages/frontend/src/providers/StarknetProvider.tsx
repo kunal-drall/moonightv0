@@ -9,6 +9,7 @@ import {
   braavos,
   useInjectedConnectors,
 } from "@starknet-react/core";
+import StarkzapProvider from "@/providers/StarkzapProvider";
 
 const isMainnet = process.env.NEXT_PUBLIC_STARKNET_NETWORK === "mainnet";
 const chain = isMainnet ? mainnet : sepolia;
@@ -27,7 +28,7 @@ function StarknetProviderInner({ children }: { children: React.ReactNode }) {
       connectors={connectors}
       autoConnect
     >
-      {children}
+      <StarkzapProvider>{children}</StarkzapProvider>
     </StarknetConfig>
   );
 }

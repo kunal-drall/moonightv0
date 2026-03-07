@@ -1,6 +1,7 @@
 "use client";
 
 import { useAccount, useConnect, useDisconnect } from "@starknet-react/core";
+import { useStarkzap } from "@/providers/StarkzapProvider";
 import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import {
@@ -8,6 +9,7 @@ import {
   ArrowRightStartOnRectangleIcon,
   ClipboardDocumentIcon,
   CheckIcon,
+  UserCircleIcon,
 } from "@heroicons/react/24/outline";
 
 function truncateAddress(address: string): string {
@@ -25,9 +27,21 @@ const WALLET_META: Record<string, { label: string }> = {
 };
 
 export default function ConnectWallet() {
-  const { address, isConnected } = useAccount();
+  const { address: srAddress, isConnected: srConnected } = useAccount();
   const { connect, connectors } = useConnect();
-  const { disconnect } = useDisconnect();
+  const { disconnect: srDisconnect } = useDisconnect();
+  const {
+    wallet: szWallet,
+    address: szAddress,
+    connecting: szConnecting,
+    error: szError,
+    connectSocial,
+    disconnect: szDisconnect,
+  } = useStarkzap();
+
+  const isConnected = srConnected || !!szWallet;
+  const address = szAddress || srAddress;
+
   const [showDropdown, setShowDropdown] = useState(false);
   const [showConnectors, setShowConnectors] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -59,6 +73,15 @@ export default function ConnectWallet() {
     }
   };
 
+  const handleDisconnect = () => {
+    if (szWallet) {
+      szDisconnect();
+    } else {
+      srDisconnect();
+    }
+    setShowDropdown(false);
+  };
+
   if (isConnected && address) {
     return (
       <div className="relative" ref={dropdownRef}>
@@ -75,7 +98,9 @@ export default function ConnectWallet() {
         {showDropdown && (
           <div className="absolute right-0 mt-2 w-60 bg-surface-1 border border-border shadow-xl shadow-black/30 overflow-hidden z-50 animate-fade-up">
             <div className="p-4 border-b border-border/50">
-              <p className="text-[10px] uppercase tracking-wider text-text-2 font-display mb-1">Connected</p>
+              <p className="text-[10px] uppercase tracking-wider text-text-2 font-display mb-1">
+                Connected {szWallet ? "via Social" : "via Wallet"}
+              </p>
               <p className="text-xs font-mono text-text-1">
                 {truncateAddress(address)}
               </p>
@@ -95,10 +120,7 @@ export default function ConnectWallet() {
                 </span>
               </button>
               <button
-                onClick={() => {
-                  disconnect();
-                  setShowDropdown(false);
-                }}
+                onClick={handleDisconnect}
                 className="w-full flex items-center gap-3 px-3 py-2 hover:bg-surface-2 transition-colors text-left"
               >
                 <ArrowRightStartOnRectangleIcon className="w-3.5 h-3.5 text-danger" />
@@ -128,10 +150,45 @@ export default function ConnectWallet() {
               Connect Wallet
             </h3>
             <p className="text-[10px] text-text-2 mt-1">
-              Choose a wallet to connect
+              Choose how to connect
             </p>
           </div>
-          <div className="p-1.5 max-h-80 overflow-y-auto">
+
+          {/* Social Login Section */}
+          <div className="p-1.5 border-b border-border/30">
+            <p className="px-3 py-1 text-[10px] uppercase tracking-wider text-text-2 font-display">
+              Social Login
+            </p>
+            <button
+              onClick={async () => {
+                await connectSocial();
+                setShowConnectors(false);
+              }}
+              disabled={szConnecting}
+              className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-surface-2 transition-colors text-left group disabled:opacity-50"
+            >
+              <div className="w-9 h-9 bg-surface-2 border border-border/50 flex items-center justify-center group-hover:border-border transition-colors overflow-hidden shrink-0">
+                <UserCircleIcon className="w-5 h-5 text-accent" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-display text-text-1 group-hover:text-text-0 transition-colors truncate">
+                  {szConnecting ? "Connecting..." : "Google / Twitter / Email"}
+                </p>
+                <p className="text-[10px] text-text-2 truncate">
+                  No wallet needed — Recommended
+                </p>
+              </div>
+            </button>
+            {szError && (
+              <p className="px-3 py-1 text-[10px] text-danger">{szError}</p>
+            )}
+          </div>
+
+          {/* Wallet Apps Section */}
+          <div className="p-1.5 max-h-60 overflow-y-auto">
+            <p className="px-3 py-1 text-[10px] uppercase tracking-wider text-text-2 font-display">
+              Wallet Apps
+            </p>
             {connectors.map((connector) => (
               <button
                 key={connector.id}
@@ -172,10 +229,9 @@ export default function ConnectWallet() {
               </button>
             ))}
             {connectors.length === 0 && (
-              <div className="px-3 py-6 text-center">
-                <p className="text-xs text-text-2">No wallets detected</p>
-                <p className="text-[10px] text-text-2 mt-1">
-                  Install Ready Wallet or Braavos
+              <div className="px-3 py-4 text-center">
+                <p className="text-[10px] text-text-2">
+                  No wallet apps detected
                 </p>
               </div>
             )}
