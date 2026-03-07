@@ -74,6 +74,17 @@ cp .env.example .env
 
 For frontend Sepolia testing, the contract addresses are pre-configured in `packages/frontend/.env.sepolia`.
 
+### Starkzap Configuration
+
+The frontend uses [Starkzap SDK](https://starkzap.dev/) for social login and STRK staking. The following env vars control its behavior:
+
+```bash
+# Enable gasless (sponsored) transactions via Cartridge Controller
+NEXT_PUBLIC_STARKZAP_GASLESS=false
+
+# Network is inferred from NEXT_PUBLIC_STARKNET_NETWORK (mainnet or sepolia)
+```
+
 ## Code Style
 
 ### Cairo

@@ -25,6 +25,27 @@ Accepts moonUSD deposits → allocates across Stability Pool (interest + liquida
 ### Vault D — Covered Call + PT/YT
 Deposits BTC → writes covered call options for premium income → splits remaining yield into Principal Tokens (PT) and Yield Tokens (YT). PT holders get fixed yield at maturity, YT holders get variable upside.
 
+## STRK Staking
+
+In addition to vault strategies, Moonight integrates **STRK native staking** via the Starkzap SDK. Users who connect via social login can delegate STRK tokens to validators directly from the Vaults page.
+
+### How It Works
+
+1. Connect via social login (Google, Twitter, or Email)
+2. Navigate to the Vaults page → STRK Staking section
+3. Choose a validator pool (e.g., Nethermind, Voyager)
+4. Enter the amount of STRK to stake
+5. Confirm the transaction — gasless if sponsored mode is enabled
+
+### Featured Validators
+
+| Validator | Pool Discovery |
+|-----------|---------------|
+| Nethermind | Auto-discovered via `getStakerPools()` |
+| Voyager | Auto-discovered via `getStakerPools()` |
+
+Staking rewards accrue automatically. The UI displays total delegated amounts and pool addresses for each validator.
+
 ## Keeper Automation
 
 All vaults require off-chain keeper bots for periodic operations:

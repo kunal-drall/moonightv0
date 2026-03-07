@@ -88,6 +88,36 @@ The `PriceOracle` contract wraps [Pragma](https://pragma.build/) on Starknet:
 - **Emergency mode**: After grace period, minting is suspended; liquidations continue with last valid price
 - **Recovery**: Owner calls `reset_emergency()` once oracle resumes
 
+## Wallet Abstraction
+
+Moonight supports two wallet connection paths through a unified interface:
+
+```
+┌──────────────────────────────────────────────┐
+│              ConnectWallet UI                │
+│                                              │
+│  ┌─────────────────┐  ┌──────────────────┐  │
+│  │  Social Login    │  │  Wallet Apps     │  │
+│  │  (Starkzap SDK)  │  │  (starknet-react)│  │
+│  │                  │  │                  │  │
+│  │  Google          │  │  Braavos         │  │
+│  │  Twitter         │  │  Ready Wallet    │  │
+│  │  Email/Passkeys  │  │                  │  │
+│  └────────┬─────────┘  └────────┬─────────┘  │
+│           │                     │             │
+│           ▼                     ▼             │
+│     ┌──────────────────────────────┐          │
+│     │    useUnifiedWallet()        │          │
+│     │    source: "starkzap"        │          │
+│     │         | "starknet-react"   │          │
+│     └──────────────────────────────┘          │
+└──────────────────────────────────────────────┘
+```
+
+- **Social Login**: Powered by [Starkzap SDK](https://starkzap.dev/) + Cartridge Controller. No browser extension needed. Supports gasless (sponsored) transactions.
+- **Wallet Apps**: Traditional browser wallets via `starknet-react`. Users install Braavos or Ready Wallet extension.
+- **Unified Hook**: `useUnifiedWallet()` returns a normalized interface. Transaction code branches on `source` to use the appropriate API (starkzap `TxBuilder` vs starknet.js `account.execute`).
+
 ## Math Libraries
 
 All financial calculations use 18-decimal fixed-point arithmetic:

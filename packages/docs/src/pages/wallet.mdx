@@ -1,0 +1,126 @@
+# Wallet Integration
+
+Moonight supports two connection methods: **social login** (no wallet extension needed) and **traditional wallet apps** (Braavos, Ready Wallet).
+
+## Social Login (Starkzap)
+
+Social login is powered by the [Starkzap SDK](https://starkzap.dev/) and Cartridge Controller. Users can sign in with:
+
+- **Google** account
+- **Twitter** account
+- **Email / Passkeys**
+
+No browser extension or seed phrase required. The Cartridge Controller creates and manages a Starknet account behind the scenes.
+
+### Gasless Transactions
+
+When `NEXT_PUBLIC_STARKZAP_GASLESS=true`, transactions are sponsored — users don't need STRK or ETH for gas fees. This is ideal for onboarding new users who don't yet hold any tokens.
+
+### Transaction Batching
+
+Social login users get access to Starkzap's `TxBuilder` for batched transaction execution:
+
+```typescript
+const tx = await szWallet
+  .tx()
+  .approve(token, spender, amount)
+  .add({ contractAddress, entrypoint, calldata })
+  .send();
+```
+
+This allows multiple contract calls (e.g., approve + open CDP) to execute atomically in a single transaction.
+
+## Traditional Wallets
+
+Browser wallet extensions connect via `starknet-react`:
+
+- [Braavos](https://braavos.app/)
+- [Ready Wallet](https://readywallet.io/)
+
+These wallets use standard `account.execute()` for transaction submission.
+
+## Unified Wallet Hook
+
+The `useUnifiedWallet()` hook provides a single interface for both connection types:
+
+```typescript
+const { address, account, szWallet, isConnected, source } = useUnifiedWallet();
+
+// source: "starkzap" | "starknet-react" | null
+if (source === "starkzap") {
+  // Use szWallet.tx() for transactions
+} else {
+  // Use account.execute() for transactions
+}
+```
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `address` | `string \| undefined` | Connected wallet address |
+| `account` | `AccountInterface \| undefined` | starknet-react account (wallet apps only) |
+| `szWallet` | `Wallet \| null` | Starkzap wallet (social login only) |
+| `isConnected` | `boolean` | Whether any wallet is connected |
+| `source` | `WalletSource` | Which connection method is active |
+
+Starkzap takes priority when both are connected.
+
+## STRK Staking
+
+Social login users can stake STRK tokens directly from the Vaults page. The Starkzap SDK discovers validator pools and handles delegation:
+
+```typescript
+import { starkzapSdk } from "@/lib/starkzap";
+import { Amount } from "starkzap";
+
+// Discover pools for a validator
+const pools = await starkzapSdk.getStakerPools(validatorAddress);
+
+// Stake STRK
+const amount = Amount.parse("100", 18, "STRK");
+const tx = await szWallet.tx()
+  .stake(poolAddress, amount)
+  .send();
+```
+
+## Architecture
+
+```
+┌────────────────┐     ┌──────────────────┐
+│  StarkzapProvider  │     │  StarknetProvider │
+│  (Social Login)    │     │  (Wallet Apps)    │
+└────────┬───────┘     └─────────┬────────┘
+         │                       │
+         ▼                       ▼
+   ┌─────────────────────────────────┐
+   │       useUnifiedWallet()        │
+   │  Merges both into one interface │
+   └──────────────┬──────────────────┘
+                  │
+         ┌────────┴─────────┐
+         ▼                  ▼
+   Mint Page            Vaults Page
+   (CDP ops)            (STRK staking)
+```
+
+### Provider Setup
+
+`StarkzapProvider` is nested inside `StarknetConfig` so both providers are available throughout the app:
+
+```tsx
+<StarknetConfig connectors={connectors} autoConnect>
+  <StarkzapProvider>
+    {children}
+  </StarkzapProvider>
+</StarknetConfig>
+```
+
+## Token Definitions
+
+Custom token definitions for Moonight are in `src/lib/tokens.ts`:
+
+| Token | Symbol | Decimals | Source |
+|-------|--------|----------|--------|
+| moonUSD | `moonUSD` | 18 | `NEXT_PUBLIC_MOONUSD` env var |
+| WBTC | `WBTC` | 8 | `NEXT_PUBLIC_MOCK_WBTC` env var |
+
+These tokens work with `Amount.parse()`, `wallet.balanceOf()`, and `TxBuilder.approve()`.
