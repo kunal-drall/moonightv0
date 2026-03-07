@@ -19,4 +19,5 @@ pub trait IStabilityPool<TContractState> {
         self: @TContractState, depositor: ContractAddress, collateral_type: felt252,
     ) -> u256;
     fn get_compounded_deposit(self: @TContractState, depositor: ContractAddress) -> u256;
+    fn get_pending_interest_yield(self: @TContractState, depositor: ContractAddress) -> u256;
 }

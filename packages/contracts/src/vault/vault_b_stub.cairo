@@ -50,6 +50,9 @@ pub mod VaultB {
         safety_buffer_bps: u256,   // Deleverage when within this % of liq threshold (1500 = 15%)
         keeper: ContractAddress,
         paused: bool,
+        // Fee
+        treasury: ContractAddress,
+        performance_fee_bps: u256, // default 2000 = 20%
     }
 
     #[event]
@@ -123,6 +126,7 @@ pub mod VaultB {
         self.max_leverage_bps.write(30000);    // 3.0x max
         self.vault_ltv_target.write(6600);      // 66% LTV per loop
         self.safety_buffer_bps.write(1500);     // 15% safety buffer
+        self.performance_fee_bps.write(2000);   // 20% performance fee
     }
 
     // =================== External (User) ===================
@@ -284,6 +288,19 @@ pub mod VaultB {
         self.paused.write(paused);
     }
 
+    #[external(v0)]
+    fn set_treasury(ref self: ContractState, treasury: ContractAddress) {
+        self.ownable.assert_only_owner();
+        self.treasury.write(treasury);
+    }
+
+    #[external(v0)]
+    fn set_performance_fee(ref self: ContractState, fee_bps: u256) {
+        self.ownable.assert_only_owner();
+        assert(fee_bps <= 3000, 'Fee too high'); // Max 30%
+        self.performance_fee_bps.write(fee_bps);
+    }
+
     // =================== Internal ===================
 
     #[generate_trait]
@@ -363,13 +380,12 @@ pub mod VaultB {
         fn _unwind_position(ref self: ContractState, user: ContractAddress) -> u256 {
             let total_btc = self.user_total_btc.read(user);
             let total_debt = self.user_total_debt.read(user);
+            let deposited = self.user_btc_deposited.read(user);
 
             if total_debt == 0 {
                 return total_btc;
             }
 
-            // In production: swap enough BTC → moonUSD to repay debt, then close CDP
-            // The net BTC = total_btc - (debt_value_in_btc)
             let oracle = IPriceOracleDispatcher { contract_address: self.price_oracle.read() };
             let (btc_price, _) = oracle.get_price('WBTC');
 
@@ -380,9 +396,26 @@ pub mod VaultB {
                 0
             };
 
+            // Deduct 20% performance fee on gains
+            let fee_bps = self.performance_fee_bps.read();
+            let final_btc = if net_btc > deposited && fee_bps > 0 {
+                let gain = net_btc - deposited;
+                let fee = gain * fee_bps / BPS;
+                // Transfer fee to treasury
+                let treasury = self.treasury.read();
+                let zero: ContractAddress = starknet::contract_address_const::<0>();
+                if treasury != zero && fee > 0 {
+                    let btc = IERC20Dispatcher { contract_address: self.btc_token.read() };
+                    btc.transfer(treasury, fee);
+                }
+                net_btc - fee
+            } else {
+                net_btc
+            };
+
             self.emit(Deleveraged { user, btc_sold: debt_in_btc, debt_repaid: total_debt });
 
-            net_btc
+            final_btc
         }
 
         /// Partially deleverage to reduce to a new target

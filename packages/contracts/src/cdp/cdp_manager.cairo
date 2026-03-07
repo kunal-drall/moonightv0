@@ -56,6 +56,8 @@ pub mod CDPManager {
         active_position_count: u256,
         // Pause state
         paused: bool,
+        // Reentrancy guard
+        reentrancy_status: felt252,
     }
 
     #[event]
@@ -168,6 +170,8 @@ pub mod CDPManager {
             mint_amount: u256,
             interest_rate: u256,
         ) -> u256 {
+            self._assert_not_reentered();
+            self.reentrancy_status.write('ENTERED');
             // Assert not paused
             assert(!self.paused.read(), 'Protocol is paused');
             // Assert collateral enabled
@@ -248,10 +252,13 @@ pub mod CDPManager {
                 collateral_amount, debt: total_debt, rate: interest_rate,
             });
 
+            self.reentrancy_status.write('NOT_ENTERED');
             position_id
         }
 
         fn close_position(ref self: ContractState, position_id: u256) {
+            self._assert_not_reentered();
+            self.reentrancy_status.write('ENTERED');
             self._assert_position_owner(position_id);
             assert(self.position_active.read(position_id), 'Position not active');
 
@@ -288,6 +295,7 @@ pub mod CDPManager {
             redemption_mgr.remove(position_id);
 
             self.emit(PositionClosed { position_id });
+            self.reentrancy_status.write('NOT_ENTERED');
         }
 
         fn deposit_collateral(ref self: ContractState, position_id: u256, amount: u256) {
@@ -307,6 +315,8 @@ pub mod CDPManager {
         }
 
         fn withdraw_collateral(ref self: ContractState, position_id: u256, amount: u256) {
+            self._assert_not_reentered();
+            self.reentrancy_status.write('ENTERED');
             self._assert_position_owner(position_id);
             assert(self.position_active.read(position_id), 'Position not active');
 
@@ -330,6 +340,7 @@ pub mod CDPManager {
             collateral_token.transfer(caller, amount);
 
             self.emit(CollateralWithdrawn { position_id, amount });
+            self.reentrancy_status.write('NOT_ENTERED');
         }
 
         fn mint_more(ref self: ContractState, position_id: u256, amount: u256) {
@@ -443,6 +454,8 @@ pub mod CDPManager {
         }
 
         fn liquidate(ref self: ContractState, position_id: u256) {
+            self._assert_not_reentered();
+            self.reentrancy_status.write('ENTERED');
             assert(self.position_active.read(position_id), 'Position not active');
 
             self._accrue_interest(position_id);
@@ -503,6 +516,7 @@ pub mod CDPManager {
             self.emit(PositionLiquidated {
                 position_id, debt_absorbed: debt, collateral_distributed: collateral_for_sp,
             });
+            self.reentrancy_status.write('NOT_ENTERED');
         }
 
         fn get_position(self: @ContractState, position_id: u256) -> PositionData {
@@ -569,6 +583,10 @@ pub mod CDPManager {
 
     #[generate_trait]
     impl InternalImpl of InternalTrait {
+        fn _assert_not_reentered(self: @ContractState) {
+            assert(self.reentrancy_status.read() != 'ENTERED', 'Reentrant call');
+        }
+
         fn _assert_position_owner(self: @ContractState, position_id: u256) {
             let caller = get_caller_address();
             let nft = IPositionNFTDispatcher { contract_address: self.position_nft.read() };
@@ -595,6 +613,22 @@ pub mod CDPManager {
                     self.weighted_rate_sum.write(
                         self.weighted_rate_sum.read() + interest_amount * rate
                     );
+
+                    // Distribute interest: 75% to SP depositors, 25% to treasury
+                    let moonusd = IMoonUSDDispatcher { contract_address: self.moonusd_token.read() };
+                    let sp_share = interest_amount * 75 / 100;
+                    let treasury_share = interest_amount - sp_share;
+
+                    if sp_share > 0 {
+                        let sp_addr = self.stability_pool.read();
+                        moonusd.mint(sp_addr, sp_share);
+                        let sp = IStabilityPoolDispatcher { contract_address: sp_addr };
+                        sp.distribute_interest(sp_share);
+                    }
+
+                    if treasury_share > 0 {
+                        moonusd.mint(self.treasury.read(), treasury_share);
+                    }
                 }
             }
         }

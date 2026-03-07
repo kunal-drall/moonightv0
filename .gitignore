@@ -43,7 +43,8 @@ coverage/
 
 # Project internal docs (not for public repo)
 MOONIGHT_PROJECT_GUIDE.md
-Moonight_Protocol_Technical_PRD.docx
+*.docx
+resources/*.docx
 
 # Claude
 .claude/

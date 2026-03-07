@@ -23,8 +23,10 @@ pub trait IVaultC<TContractState> {
     // Moonight extensions
     fn deposit_usdc(ref self: TContractState, usdc_amount: u256, receiver: ContractAddress) -> u256;
     fn compound(ref self: TContractState);
-    fn reallocate(ref self: TContractState, new_weights: Array<u256>);
+    fn reallocate(ref self: TContractState);
     fn get_allocation(self: @TContractState) -> (u256, u256, u256);
     fn get_effective_apy(self: @TContractState) -> u256;
     fn get_price_per_share(self: @TContractState) -> u256;
+    fn get_tvl_cap(self: @TContractState) -> u256;
+    fn get_adapter_count(self: @TContractState) -> u256;
 }

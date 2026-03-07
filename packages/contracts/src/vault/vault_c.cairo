@@ -1,9 +1,12 @@
 // Vault C - Yield Optimizer (vmoonUSD, ERC-4626 compliant)
 //
-// Accepts moonUSD deposits and allocates across yield sources:
-//   - Stability Pool (56% default) — earns liquidation proceeds + interest share
-//   - Ekubo LP (29% default)       — earns LP fees on moonUSD/USDC pair
-//   - LayerZero bridge (15%)       — earns bridge fee share (disabled initially)
+// Accepts moonUSD deposits and allocates across registered yield adapters
+// using softmax-weighted allocation based on adapter APYs.
+//
+// Adapters:
+//   - SP Adapter      — Stability Pool interest yield
+//   - Ekubo Adapter   — LP fees on moonUSD/USDC pair (stub)
+//   - strkBTC Adapter — BTC staking yield (stub)
 //
 // The vault mints vmoonUSD (vault shares) 1:1 initially, with price-per-share
 // increasing as yield compounds. A 15% performance fee is deducted on compound
@@ -12,12 +15,13 @@
 #[starknet::contract]
 pub mod VaultC {
     use starknet::{ContractAddress, get_caller_address, get_contract_address, get_block_timestamp};
-    use starknet::storage::{StoragePointerReadAccess, StoragePointerWriteAccess};
+    use starknet::storage::{Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess, StoragePointerWriteAccess};
     use openzeppelin_token::erc20::{ERC20Component, ERC20HooksEmptyImpl};
     use openzeppelin_token::erc20::interface::{IERC20Dispatcher, IERC20DispatcherTrait};
     use openzeppelin_access::ownable::OwnableComponent;
-    use moonight::interfaces::i_stability_pool::{IStabilityPoolDispatcher, IStabilityPoolDispatcherTrait};
+    use moonight::interfaces::i_yield_adapter::{IYieldAdapterDispatcher, IYieldAdapterDispatcherTrait};
     use moonight::math::fixed_point::SCALE;
+    use moonight::math::softmax::softmax_allocate;
 
     component!(path: ERC20Component, storage: erc20, event: ERC20Event);
     component!(path: OwnableComponent, storage: ownable, event: OwnableEvent);
@@ -30,6 +34,11 @@ pub mod VaultC {
     impl OwnableInternalImpl = OwnableComponent::InternalImpl<ContractState>;
 
     const BPS: u256 = 10_000;
+    const COMPOUND_INTERVAL: u64 = 82800; // 23 hours in seconds
+    const MIN_DEPOSIT: u256 = 100_000_000_000_000_000_000; // 100 moonUSD (18 dec)
+    const MAX_DEPOSIT_PER_TX: u256 = 50_000_000_000_000_000_000_000; // 50,000 moonUSD
+    const DEFAULT_TVL_CAP: u256 = 500_000_000_000_000_000_000_000; // 500,000 moonUSD
+    const GAMMA_BPS: u256 = 15000; // 1.5 exponent for softmax
 
     #[storage]
     struct Storage {
@@ -39,16 +48,12 @@ pub mod VaultC {
         ownable: OwnableComponent::Storage,
         moonusd_token: ContractAddress,
         usdc_token: ContractAddress,
-        stability_pool: ContractAddress,
-        ekubo_router: ContractAddress,
-        // Allocation weights (BPS, must sum to 10000)
-        weight_sp: u256,
-        weight_ekubo: u256,
-        weight_lz: u256,
-        // Capital deployed per source
-        capital_in_sp: u256,
-        capital_in_ekubo: u256,
-        capital_in_lz: u256,
+        // Adapter registry
+        adapter_count: u256,
+        adapters: Map<u256, ContractAddress>,
+        adapter_min_weight: Map<u256, u256>, // min weight in BPS
+        adapter_max_weight: Map<u256, u256>, // max weight in BPS
+        adapter_current_weight: Map<u256, u256>, // current weight in BPS
         // Total assets under management
         total_assets_cached: u256,
         // Yield tracking
@@ -57,9 +62,13 @@ pub mod VaultC {
         // Fees
         performance_fee_bps: u256,
         treasury: ContractAddress,
+        // TVL cap
+        tvl_cap: u256,
         // Access control
         keeper: ContractAddress,
         paused: bool,
+        // Reentrancy guard
+        reentrancy_status: felt252,
     }
 
     #[event]
@@ -73,6 +82,7 @@ pub mod VaultC {
         WithdrawEvent: WithdrawEvent,
         Compound: Compound,
         Reallocate: Reallocate,
+        AdapterAdded: AdapterAdded,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -106,10 +116,14 @@ pub mod VaultC {
 
     #[derive(Drop, starknet::Event)]
     struct Reallocate {
-        new_sp: u256,
-        new_ekubo: u256,
-        new_lz: u256,
         timestamp: u64,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct AdapterAdded {
+        #[key]
+        index: u256,
+        adapter: ContractAddress,
     }
 
     #[constructor]
@@ -118,19 +132,16 @@ pub mod VaultC {
         owner: ContractAddress,
         moonusd_token: ContractAddress,
         usdc_token: ContractAddress,
-        stability_pool: ContractAddress,
     ) {
         self.erc20.initializer("vmoonUSD", "vmUSD");
         self.ownable.initializer(owner);
         self.moonusd_token.write(moonusd_token);
         self.usdc_token.write(usdc_token);
-        self.stability_pool.write(stability_pool);
-        // Default allocation: 56% SP, 29% Ekubo, 15% LZ
-        self.weight_sp.write(5600);
-        self.weight_ekubo.write(2900);
-        self.weight_lz.write(1500);
+        self.adapter_count.write(0);
         self.performance_fee_bps.write(1500); // 15% perf fee
+        self.tvl_cap.write(DEFAULT_TVL_CAP);
         self.paused.write(false);
+        self.reentrancy_status.write('NOT_ENTERED');
     }
 
     #[abi(embed_v0)]
@@ -165,9 +176,19 @@ pub mod VaultC {
 
         fn max_deposit(self: @ContractState, receiver: ContractAddress) -> u256 {
             if self.paused.read() {
+                return 0;
+            }
+            let total = self.total_assets_cached.read();
+            let cap = self.tvl_cap.read();
+            if total >= cap {
                 0
             } else {
-                0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF_u256
+                let remaining = cap - total;
+                if remaining > MAX_DEPOSIT_PER_TX {
+                    MAX_DEPOSIT_PER_TX
+                } else {
+                    remaining
+                }
             }
         }
 
@@ -178,8 +199,16 @@ pub mod VaultC {
         fn deposit_assets(
             ref self: ContractState, assets: u256, receiver: ContractAddress
         ) -> u256 {
+            self._assert_not_reentered();
+            self.reentrancy_status.write('ENTERED');
+
             assert(!self.paused.read(), 'Vault paused');
-            assert(assets > 0, 'Zero deposit');
+            assert(assets >= MIN_DEPOSIT, 'Below min deposit');
+            assert(assets <= MAX_DEPOSIT_PER_TX, 'Exceeds max per tx');
+
+            // Enforce TVL cap
+            let total_before = self.total_assets_cached.read();
+            assert(total_before + assets <= self.tvl_cap.read(), 'TVL cap exceeded');
 
             let caller = get_caller_address();
             let this = get_contract_address();
@@ -196,10 +225,10 @@ pub mod VaultC {
 
             // Mint vault shares to receiver
             self.erc20.mint(receiver, shares);
-            self.total_assets_cached.write(self.total_assets_cached.read() + assets);
+            self.total_assets_cached.write(total_before + assets);
 
-            // Deploy capital to Stability Pool (primary allocation)
-            self._deploy_to_sp(assets);
+            // Deploy capital to adapters based on current weights
+            self._deploy_to_adapters(assets);
 
             self.emit(DepositEvent {
                 sender: caller,
@@ -208,6 +237,7 @@ pub mod VaultC {
                 shares,
             });
 
+            self.reentrancy_status.write('NOT_ENTERED');
             shares
         }
 
@@ -225,9 +255,14 @@ pub mod VaultC {
             receiver: ContractAddress,
             owner: ContractAddress,
         ) -> u256 {
+            self._assert_not_reentered();
+            self.reentrancy_status.write('ENTERED');
+
             assert(assets > 0, 'Zero withdrawal');
             let shares = self.convert_to_shares(assets);
             self._process_withdrawal(shares, assets, receiver, owner);
+
+            self.reentrancy_status.write('NOT_ENTERED');
             shares
         }
 
@@ -245,15 +280,23 @@ pub mod VaultC {
             receiver: ContractAddress,
             owner: ContractAddress,
         ) -> u256 {
+            self._assert_not_reentered();
+            self.reentrancy_status.write('ENTERED');
+
             assert(shares > 0, 'Zero redeem');
             let assets = self.convert_to_assets(shares);
             self._process_withdrawal(shares, assets, receiver, owner);
+
+            self.reentrancy_status.write('NOT_ENTERED');
             assets
         }
 
         fn deposit_usdc(
             ref self: ContractState, usdc_amount: u256, receiver: ContractAddress
         ) -> u256 {
+            self._assert_not_reentered();
+            self.reentrancy_status.write('ENTERED');
+
             assert(!self.paused.read(), 'Vault paused');
             assert(usdc_amount > 0, 'Zero deposit');
 
@@ -270,13 +313,14 @@ pub mod VaultC {
             // For now, treat USDC 1:1 with moonUSD (same USD peg)
             let moonusd_equivalent = usdc_amount;
 
+            let total_before = self.total_assets_cached.read();
+            assert(total_before + moonusd_equivalent <= self.tvl_cap.read(), 'TVL cap exceeded');
+
             let shares = self.convert_to_shares(moonusd_equivalent);
             assert(shares > 0, 'Zero shares');
 
             self.erc20.mint(receiver, shares);
-            self.total_assets_cached.write(
-                self.total_assets_cached.read() + moonusd_equivalent
-            );
+            self.total_assets_cached.write(total_before + moonusd_equivalent);
 
             self.emit(DepositEvent {
                 sender: caller,
@@ -285,10 +329,14 @@ pub mod VaultC {
                 shares,
             });
 
+            self.reentrancy_status.write('NOT_ENTERED');
             shares
         }
 
         fn compound(ref self: ContractState) {
+            self._assert_not_reentered();
+            self.reentrancy_status.write('ENTERED');
+
             let caller = get_caller_address();
             assert(
                 caller == self.keeper.read() || caller == self.ownable.owner(),
@@ -297,25 +345,29 @@ pub mod VaultC {
 
             let now = get_block_timestamp();
             let last = self.last_compound_time.read();
-            // Minimum 1 hour between compounds
-            assert(now > last + 3600 || last == 0, 'Too soon');
+            assert(now > last + COMPOUND_INTERVAL || last == 0, 'Too soon');
 
-            // 1. Harvest from Stability Pool
-            let sp_yield = self._harvest_sp_yield();
+            // Harvest from all active adapters
+            let count = self.adapter_count.read();
+            let mut total_yield: u256 = 0;
+            let mut i: u256 = 0;
+            while i < count {
+                let adapter_addr = self.adapters.read(i);
+                let adapter = IYieldAdapterDispatcher { contract_address: adapter_addr };
+                if adapter.is_active() {
+                    let yield_amount = adapter.harvest();
+                    total_yield += yield_amount;
+                }
+                i += 1;
+            };
 
-            // 2. Harvest from Ekubo LP (placeholder)
-            let ekubo_yield = self._harvest_ekubo_yield();
-
-            // 3. LayerZero yield (placeholder)
-            let lz_yield: u256 = 0;
-
-            let total_yield = sp_yield + ekubo_yield + lz_yield;
             if total_yield == 0 {
                 self.last_compound_time.write(now);
+                self.reentrancy_status.write('NOT_ENTERED');
                 return;
             }
 
-            // 4. Deduct performance fee
+            // Deduct performance fee
             let fee_bps = self.performance_fee_bps.read();
             let fee = total_yield * fee_bps / BPS;
             let net_yield = total_yield - fee;
@@ -332,7 +384,7 @@ pub mod VaultC {
                 }
             }
 
-            // 5. Reinvest net yield — increases share price
+            // Reinvest net yield — increases share price
             self.total_assets_cached.write(
                 self.total_assets_cached.read() + net_yield
             );
@@ -344,47 +396,69 @@ pub mod VaultC {
                 fee_taken: fee,
                 timestamp: now,
             });
+
+            self.reentrancy_status.write('NOT_ENTERED');
         }
 
-        fn reallocate(ref self: ContractState, new_weights: Array<u256>) {
+        fn reallocate(ref self: ContractState) {
             let caller = get_caller_address();
             assert(
                 caller == self.keeper.read() || caller == self.ownable.owner(),
                 'Not authorized'
             );
-            assert(new_weights.len() == 3, 'Need 3 weights');
 
-            let w_sp = *new_weights.at(0);
-            let w_ekubo = *new_weights.at(1);
-            let w_lz = *new_weights.at(2);
+            let count = self.adapter_count.read();
+            if count == 0 {
+                return;
+            }
 
-            // Validate weights sum to 10000 BPS
-            assert(w_sp + w_ekubo + w_lz == BPS, 'Weights must sum to 10000');
+            // Collect APYs, mins, maxs from adapters
+            let mut apys: Array<u256> = ArrayTrait::new();
+            let mut mins: Array<u256> = ArrayTrait::new();
+            let mut maxs: Array<u256> = ArrayTrait::new();
 
-            // Stability Pool must remain >= 30% for protocol safety
-            assert(w_sp >= 3000, 'SP weight min 30%');
+            let mut i: u256 = 0;
+            while i < count {
+                let adapter_addr = self.adapters.read(i);
+                let adapter = IYieldAdapterDispatcher { contract_address: adapter_addr };
+                let apy = if adapter.is_active() {
+                    adapter.get_current_apy_bps()
+                } else {
+                    0
+                };
+                apys.append(apy);
+                mins.append(self.adapter_min_weight.read(i));
+                maxs.append(self.adapter_max_weight.read(i));
+                i += 1;
+            };
 
-            self.weight_sp.write(w_sp);
-            self.weight_ekubo.write(w_ekubo);
-            self.weight_lz.write(w_lz);
+            // Compute softmax weights
+            let weights = softmax_allocate(
+                apys.span(), GAMMA_BPS, mins.span(), maxs.span()
+            );
+
+            // Store new weights
+            let mut i: u256 = 0;
+            while i < count {
+                let w = *weights.at(i.try_into().unwrap());
+                self.adapter_current_weight.write(i, w);
+                i += 1;
+            };
 
             // Rebalance capital according to new weights
-            self._rebalance_capital();
+            self._rebalance_adapters();
 
             self.emit(Reallocate {
-                new_sp: w_sp,
-                new_ekubo: w_ekubo,
-                new_lz: w_lz,
                 timestamp: get_block_timestamp(),
             });
         }
 
         fn get_allocation(self: @ContractState) -> (u256, u256, u256) {
-            (
-                self.weight_sp.read(),
-                self.weight_ekubo.read(),
-                self.weight_lz.read(),
-            )
+            let count = self.adapter_count.read();
+            let w0 = if count > 0 { self.adapter_current_weight.read(0) } else { 0 };
+            let w1 = if count > 1 { self.adapter_current_weight.read(1) } else { 0 };
+            let w2 = if count > 2 { self.adapter_current_weight.read(2) } else { 0 };
+            (w0, w1, w2)
         }
 
         fn get_effective_apy(self: @ContractState) -> u256 {
@@ -405,11 +479,23 @@ pub mod VaultC {
                 total * SCALE / supply
             }
         }
+
+        fn get_tvl_cap(self: @ContractState) -> u256 {
+            self.tvl_cap.read()
+        }
+
+        fn get_adapter_count(self: @ContractState) -> u256 {
+            self.adapter_count.read()
+        }
     }
 
     // Internal implementation
     #[generate_trait]
     impl InternalImpl of InternalTrait {
+        fn _assert_not_reentered(self: @ContractState) {
+            assert(self.reentrancy_status.read() != 'ENTERED', 'Reentrant call');
+        }
+
         fn _process_withdrawal(
             ref self: ContractState,
             shares: u256,
@@ -434,8 +520,8 @@ pub mod VaultC {
                 self.total_assets_cached.read() - assets
             );
 
-            // Withdraw capital from SP first (most liquid)
-            self._withdraw_from_sp(assets);
+            // Withdraw from adapters (lowest APY first)
+            self._withdraw_from_adapters(assets);
 
             // Transfer moonUSD to receiver
             let token = IERC20Dispatcher {
@@ -452,102 +538,160 @@ pub mod VaultC {
             });
         }
 
-        fn _deploy_to_sp(ref self: ContractState, amount: u256) {
-            let sp_addr = self.stability_pool.read();
-            let zero: ContractAddress = starknet::contract_address_const::<0>();
-            if sp_addr == zero {
+        fn _deploy_to_adapters(ref self: ContractState, amount: u256) {
+            let count = self.adapter_count.read();
+            if count == 0 {
                 return;
             }
 
-            // Approve SP to spend moonUSD
-            let token = IERC20Dispatcher {
-                contract_address: self.moonusd_token.read(),
+            let mut remaining = amount;
+            let mut i: u256 = 0;
+            while i < count {
+                let weight = self.adapter_current_weight.read(i);
+                let adapter_addr = self.adapters.read(i);
+                let adapter = IYieldAdapterDispatcher { contract_address: adapter_addr };
+
+                if adapter.is_active() && weight > 0 {
+                    let deploy_amount = if i == count - 1 {
+                        // Last adapter gets remainder
+                        remaining
+                    } else {
+                        let portion = amount * weight / BPS;
+                        if portion > remaining { remaining } else { portion }
+                    };
+
+                    if deploy_amount > 0 {
+                        // Approve adapter to pull tokens
+                        let token = IERC20Dispatcher {
+                            contract_address: self.moonusd_token.read(),
+                        };
+                        token.approve(adapter_addr, deploy_amount);
+                        adapter.deploy(deploy_amount);
+                        remaining -= deploy_amount;
+                    }
+                }
+                i += 1;
             };
-            token.approve(sp_addr, amount);
-
-            // Deposit into Stability Pool
-            let sp = IStabilityPoolDispatcher { contract_address: sp_addr };
-            sp.deposit(amount);
-
-            self.capital_in_sp.write(self.capital_in_sp.read() + amount);
         }
 
-        fn _withdraw_from_sp(ref self: ContractState, amount: u256) {
-            let sp_addr = self.stability_pool.read();
-            let zero: ContractAddress = starknet::contract_address_const::<0>();
-            if sp_addr == zero {
+        fn _withdraw_from_adapters(ref self: ContractState, amount: u256) {
+            let count = self.adapter_count.read();
+            if count == 0 {
                 return;
             }
 
-            let capital = self.capital_in_sp.read();
-            let withdraw_amount = if amount <= capital { amount } else { capital };
+            // Withdraw from lowest-APY adapter first
+            // Simple approach: collect (index, apy) then iterate from lowest
+            let mut remaining = amount;
 
-            if withdraw_amount > 0 {
-                let sp = IStabilityPoolDispatcher { contract_address: sp_addr };
-                sp.withdraw(withdraw_amount);
-                self.capital_in_sp.write(capital - withdraw_amount);
-            }
-        }
+            // First pass: find adapter with lowest APY that has capital
+            // Iterate multiple passes until remaining is 0
+            let mut passes: u256 = 0;
+            while remaining > 0 && passes < count {
+                let mut lowest_apy: u256 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+                let mut lowest_idx: u256 = 0;
+                let mut found = false;
 
-        fn _harvest_sp_yield(ref self: ContractState) -> u256 {
-            let sp_addr = self.stability_pool.read();
-            let zero: ContractAddress = starknet::contract_address_const::<0>();
-            if sp_addr == zero {
-                return 0;
-            }
+                let mut i: u256 = 0;
+                while i < count {
+                    let adapter_addr = self.adapters.read(i);
+                    let adapter = IYieldAdapterDispatcher { contract_address: adapter_addr };
+                    let capital = adapter.get_deployed_capital();
+                    if capital > 0 {
+                        let apy = adapter.get_current_apy_bps();
+                        if apy < lowest_apy {
+                            lowest_apy = apy;
+                            lowest_idx = i;
+                            found = true;
+                        }
+                    }
+                    i += 1;
+                };
 
-            let sp = IStabilityPoolDispatcher { contract_address: sp_addr };
+                if !found {
+                    break;
+                }
 
-            // Claim interest yield from SP
-            sp.claim_interest_yield();
-
-            // Check balance delta to determine yield earned
-            let token = IERC20Dispatcher {
-                contract_address: self.moonusd_token.read(),
+                let adapter_addr = self.adapters.read(lowest_idx);
+                let adapter = IYieldAdapterDispatcher { contract_address: adapter_addr };
+                let withdrawn = adapter.withdraw(remaining);
+                if withdrawn > remaining {
+                    remaining = 0;
+                } else {
+                    remaining -= withdrawn;
+                }
+                passes += 1;
             };
-            let balance = token.balance_of(get_contract_address());
-            let expected = self.total_assets_cached.read();
-
-            if balance > expected {
-                balance - expected
-            } else {
-                0
-            }
         }
 
-        fn _harvest_ekubo_yield(ref self: ContractState) -> u256 {
-            // Placeholder: will call Ekubo router to collect LP fees
-            0
-        }
-
-        fn _rebalance_capital(ref self: ContractState) {
+        fn _rebalance_adapters(ref self: ContractState) {
             let total = self.total_assets_cached.read();
             if total == 0 {
                 return;
             }
 
-            let target_sp = total * self.weight_sp.read() / BPS;
-            let target_ekubo = total * self.weight_ekubo.read() / BPS;
-            let target_lz = total * self.weight_lz.read() / BPS;
+            let count = self.adapter_count.read();
 
-            let current_sp = self.capital_in_sp.read();
+            // Step 1: Withdraw excess from over-allocated adapters
+            let mut i: u256 = 0;
+            while i < count {
+                let target = total * self.adapter_current_weight.read(i) / BPS;
+                let adapter_addr = self.adapters.read(i);
+                let adapter = IYieldAdapterDispatcher { contract_address: adapter_addr };
+                let current = adapter.get_deployed_capital();
 
-            // Rebalance SP allocation
-            if target_sp > current_sp {
-                let deploy = target_sp - current_sp;
-                self._deploy_to_sp(deploy);
-            } else if current_sp > target_sp {
-                let remove = current_sp - target_sp;
-                self._withdraw_from_sp(remove);
-            }
+                if current > target {
+                    let excess = current - target;
+                    adapter.withdraw(excess);
+                }
+                i += 1;
+            };
 
-            // Update tracked capital (Ekubo/LZ are placeholders)
-            self.capital_in_ekubo.write(target_ekubo);
-            self.capital_in_lz.write(target_lz);
+            // Step 2: Deploy to under-allocated adapters
+            let mut i: u256 = 0;
+            while i < count {
+                let target = total * self.adapter_current_weight.read(i) / BPS;
+                let adapter_addr = self.adapters.read(i);
+                let adapter = IYieldAdapterDispatcher { contract_address: adapter_addr };
+                let current = adapter.get_deployed_capital();
+
+                if current < target && adapter.is_active() {
+                    let deficit = target - current;
+                    let token = IERC20Dispatcher {
+                        contract_address: self.moonusd_token.read(),
+                    };
+                    token.approve(adapter_addr, deficit);
+                    adapter.deploy(deficit);
+                }
+                i += 1;
+            };
         }
     }
 
     // Admin functions
+    #[external(v0)]
+    fn add_adapter(
+        ref self: ContractState,
+        adapter: ContractAddress,
+        min_weight_bps: u256,
+        max_weight_bps: u256,
+        initial_weight_bps: u256,
+    ) {
+        self.ownable.assert_only_owner();
+        assert(min_weight_bps <= max_weight_bps, 'Invalid weight bounds');
+        assert(initial_weight_bps >= min_weight_bps, 'Below min weight');
+        assert(initial_weight_bps <= max_weight_bps, 'Above max weight');
+
+        let idx = self.adapter_count.read();
+        self.adapters.write(idx, adapter);
+        self.adapter_min_weight.write(idx, min_weight_bps);
+        self.adapter_max_weight.write(idx, max_weight_bps);
+        self.adapter_current_weight.write(idx, initial_weight_bps);
+        self.adapter_count.write(idx + 1);
+
+        self.emit(AdapterAdded { index: idx, adapter });
+    }
+
     #[external(v0)]
     fn set_keeper(ref self: ContractState, keeper: ContractAddress) {
         self.ownable.assert_only_owner();
@@ -561,9 +705,9 @@ pub mod VaultC {
     }
 
     #[external(v0)]
-    fn set_ekubo_router(ref self: ContractState, router: ContractAddress) {
+    fn set_tvl_cap(ref self: ContractState, cap: u256) {
         self.ownable.assert_only_owner();
-        self.ekubo_router.write(router);
+        self.tvl_cap.write(cap);
     }
 
     #[external(v0)]

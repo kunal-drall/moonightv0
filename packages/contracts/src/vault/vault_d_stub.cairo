@@ -59,6 +59,9 @@ pub mod VaultD {
         keeper: ContractAddress,
         premium_payout_token: felt252,    // 'moonusd' or 'usdc'
         paused: bool,
+        // Fee
+        treasury: ContractAddress,
+        premium_fee_bps: u256, // default 500 = 5%
     }
 
     #[event]
@@ -141,6 +144,7 @@ pub mod VaultD {
         self.min_deposit.write(SCALE / 1000);        // 0.001 BTC min
         self.premium_payout_token.write('usdc');
         self.current_epoch.write(0);
+        self.premium_fee_bps.write(500);             // 5% premium fee
     }
 
     // =================== External (User) ===================
@@ -385,11 +389,31 @@ pub mod VaultD {
         self.epoch_btc_called.write(epoch, called);
         self.epoch_settled.write(epoch, true);
 
-        // Track total premiums
+        // Track total premiums and deduct fee
         let premium_rate = self.epoch_premium_rate.read(epoch);
         let total_btc = self.total_btc_deposited.read();
-        let premium = (total_btc * premium_rate) / BPS;
-        self.total_premiums_earned.write(self.total_premiums_earned.read() + premium);
+        let gross_premium = (total_btc * premium_rate) / BPS;
+
+        // Deduct 5% premium fee to treasury
+        let fee_bps = self.premium_fee_bps.read();
+        let fee = gross_premium * fee_bps / BPS;
+        let net_premium = gross_premium - fee;
+
+        if fee > 0 {
+            let treasury = self.treasury.read();
+            let zero: ContractAddress = starknet::contract_address_const::<0>();
+            if treasury != zero {
+                let payout_token = if self.premium_payout_token.read() == 'usdc' {
+                    self.usdc_token.read()
+                } else {
+                    self.moonusd_token.read()
+                };
+                let token = IERC20Dispatcher { contract_address: payout_token };
+                token.transfer(treasury, fee);
+            }
+        }
+
+        self.total_premiums_earned.write(self.total_premiums_earned.read() + net_premium);
 
         self.emit(EpochSettled { epoch, btc_called: called, settlement_price: spot });
     }
@@ -425,5 +449,18 @@ pub mod VaultD {
     fn set_paused(ref self: ContractState, paused: bool) {
         self.ownable.assert_only_owner();
         self.paused.write(paused);
+    }
+
+    #[external(v0)]
+    fn set_treasury(ref self: ContractState, treasury: ContractAddress) {
+        self.ownable.assert_only_owner();
+        self.treasury.write(treasury);
+    }
+
+    #[external(v0)]
+    fn set_premium_fee(ref self: ContractState, fee_bps: u256) {
+        self.ownable.assert_only_owner();
+        assert(fee_bps <= 1000, 'Fee too high'); // Max 10%
+        self.premium_fee_bps.write(fee_bps);
     }
 }

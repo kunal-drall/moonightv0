@@ -22,6 +22,8 @@ pub mod interfaces {
     pub mod i_pragma;
     pub mod i_extended_dex;
     pub mod i_ekubo;
+    pub mod i_flash_borrower;
+    pub mod i_yield_adapter;
 }
 
 // Token contracts
@@ -55,6 +57,11 @@ pub mod vault {
     pub mod vault_c;
     pub mod vault_b_stub;
     pub mod vault_d_stub;
+    pub mod adapters {
+        pub mod sp_adapter;
+        pub mod ekubo_adapter;
+        pub mod strkbtc_adapter;
+    }
 }
 
 // Configuration

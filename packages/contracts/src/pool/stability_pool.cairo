@@ -1,5 +1,8 @@
 // Stability Pool - Liquidation absorption + interest yield distribution
-// Uses Liquity-style O(1) product/sum accounting
+// Uses Liquity-style O(1) product/sum accounting:
+//   P (product) for deposit compounding after liquidations
+//   S (sum) for collateral gain tracking per collateral type
+//   G (sum) for interest yield distribution
 
 #[starknet::contract]
 pub mod StabilityPool {
@@ -16,6 +19,9 @@ pub mod StabilityPool {
     impl OwnableImpl = OwnableComponent::OwnableMixinImpl<ContractState>;
     impl OwnableInternalImpl = OwnableComponent::InternalImpl<ContractState>;
 
+    const NOT_ENTERED: felt252 = 'NOT_ENTERED';
+    const ENTERED: felt252 = 'ENTERED';
+
     #[storage]
     struct Storage {
         #[substorage(v0)]
@@ -28,6 +34,9 @@ pub mod StabilityPool {
         deposit_snapshot_s: Map<(ContractAddress, felt252), u256>,
         deposit_snapshot_epoch: Map<ContractAddress, u256>,
         deposit_snapshot_scale: Map<ContractAddress, u256>,
+        // Interest yield — G-sum accounting
+        interest_sum_g: u256,
+        deposit_snapshot_g: Map<ContractAddress, u256>,
         // Global accumulators
         total_deposits: u256,
         product_p: u256,
@@ -37,8 +46,10 @@ pub mod StabilityPool {
         // Collateral tracking
         collateral_balances: Map<felt252, u256>,
         collateral_tokens: Map<felt252, ContractAddress>,
-        // Interest yield
-        pending_interest_yield: u256,
+        collateral_count: u32,
+        collateral_keys: Map<u32, felt252>,
+        // Reentrancy guard
+        reentrancy_status: felt252,
     }
 
     #[event]
@@ -49,6 +60,9 @@ pub mod StabilityPool {
         Deposited: Deposited,
         Withdrawn: Withdrawn,
         LiquidationAbsorbed: LiquidationAbsorbed,
+        InterestDistributed: InterestDistributed,
+        InterestClaimed: InterestClaimed,
+        CollateralClaimed: CollateralClaimed,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -72,6 +86,27 @@ pub mod StabilityPool {
         collateral_amount: u256,
     }
 
+    #[derive(Drop, starknet::Event)]
+    struct InterestDistributed {
+        amount: u256,
+        timestamp: u64,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct InterestClaimed {
+        #[key]
+        depositor: ContractAddress,
+        amount: u256,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct CollateralClaimed {
+        #[key]
+        depositor: ContractAddress,
+        collateral_type: felt252,
+        amount: u256,
+    }
+
     #[constructor]
     fn constructor(
         ref self: ContractState,
@@ -80,48 +115,63 @@ pub mod StabilityPool {
     ) {
         self.ownable.initializer(owner);
         self.moonusd_token.write(moonusd_token);
-        self.product_p.write(SCALE); // Initialize P to 1.0
+        self.product_p.write(SCALE);
         self.current_epoch.write(0);
         self.current_scale.write(0);
+        self.interest_sum_g.write(0);
+        self.collateral_count.write(0);
+        self.reentrancy_status.write(NOT_ENTERED);
     }
 
     #[abi(embed_v0)]
     impl StabilityPoolImpl of moonight::interfaces::i_stability_pool::IStabilityPool<ContractState> {
         fn deposit(ref self: ContractState, amount: u256) {
+            self._enter();
             assert(amount > 0, 'Zero deposit');
             let caller = get_caller_address();
 
+            // Auto-claim pending interest before updating snapshot
+            self._claim_interest_internal(caller);
+
             // Transfer moonUSD from depositor
-            let moonusd = IMoonUSDDispatcher { contract_address: self.moonusd_token.read() };
             let token = IERC20Dispatcher { contract_address: self.moonusd_token.read() };
             token.transfer_from(caller, starknet::get_contract_address(), amount);
 
-            // Take snapshot for depositor
+            // Update deposit
             let current_deposit = self.deposits.read(caller);
             let new_deposit = current_deposit + amount;
             self.deposits.write(caller, new_deposit);
+
+            // Take snapshots
             self.deposit_snapshot_p.write(caller, self.product_p.read());
             self.deposit_snapshot_epoch.write(caller, self.current_epoch.read());
             self.deposit_snapshot_scale.write(caller, self.current_scale.read());
+            self.deposit_snapshot_g.write(caller, self.interest_sum_g.read());
 
             self.total_deposits.write(self.total_deposits.read() + amount);
 
             self.emit(Deposited { depositor: caller, amount });
+            self._exit();
         }
 
         fn withdraw(ref self: ContractState, amount: u256) {
+            self._enter();
             let caller = get_caller_address();
             let compounded = self._get_compounded_deposit(caller);
             assert(amount <= compounded, 'Exceeds compounded deposit');
+
+            // Auto-claim pending interest before updating snapshot
+            self._claim_interest_internal(caller);
 
             let deposit = self.deposits.read(caller);
             let new_deposit = if amount >= deposit { 0 } else { deposit - amount };
             self.deposits.write(caller, new_deposit);
 
-            // Update snapshot
+            // Update snapshots
             self.deposit_snapshot_p.write(caller, self.product_p.read());
             self.deposit_snapshot_epoch.write(caller, self.current_epoch.read());
             self.deposit_snapshot_scale.write(caller, self.current_scale.read());
+            self.deposit_snapshot_g.write(caller, self.interest_sum_g.read());
 
             self.total_deposits.write(self.total_deposits.read() - amount);
 
@@ -130,15 +180,49 @@ pub mod StabilityPool {
             token.transfer(caller, amount);
 
             self.emit(Withdrawn { depositor: caller, amount });
+            self._exit();
         }
 
         fn claim_collateral_gains(ref self: ContractState) {
-            // Claim accumulated collateral gains from liquidations
-            // Simplified: would iterate over known collateral types
+            self._enter();
+            let caller = get_caller_address();
+            let deposit = self.deposits.read(caller);
+            assert(deposit > 0, 'No deposit');
+
+            let count = self.collateral_count.read();
+            let mut i: u32 = 0;
+            while i < count {
+                let col_key = self.collateral_keys.read(i);
+                let gain = self._get_collateral_gain(caller, col_key);
+                if gain > 0 {
+                    let col_token_addr = self.collateral_tokens.read(col_key);
+                    let zero: ContractAddress = starknet::contract_address_const::<0>();
+                    if col_token_addr != zero {
+                        let col_token = IERC20Dispatcher { contract_address: col_token_addr };
+                        col_token.transfer(caller, gain);
+
+                        let bal = self.collateral_balances.read(col_key);
+                        self.collateral_balances.write(col_key, bal - gain);
+
+                        self.emit(CollateralClaimed {
+                            depositor: caller,
+                            collateral_type: col_key,
+                            amount: gain,
+                        });
+                    }
+                }
+                // Update S snapshot for this collateral type
+                self.deposit_snapshot_s.write((caller, col_key), self.sum_s.read(col_key));
+                i += 1;
+            };
+            self._exit();
         }
 
         fn claim_interest_yield(ref self: ContractState) {
-            // Claim accumulated interest yield
+            self._enter();
+            let caller = get_caller_address();
+            self._claim_interest_internal(caller);
+            self._exit();
         }
 
         fn absorb_liquidation(
@@ -164,8 +248,7 @@ pub mod StabilityPool {
             let loss_per_unit = debt_amount * SCALE / total;
             let new_p = mul_fp(self.product_p.read(), SCALE - loss_per_unit);
 
-            // Epoch reset if P drops too low
-            if new_p < 1_000_000_000 { // < 10^9
+            if new_p < 1_000_000_000 {
                 self.current_epoch.write(self.current_epoch.read() + 1);
                 self.product_p.write(SCALE);
             } else {
@@ -178,7 +261,6 @@ pub mod StabilityPool {
 
             self.total_deposits.write(total - debt_amount);
 
-            // Track collateral balance
             let current_col_bal = self.collateral_balances.read(collateral_type);
             self.collateral_balances.write(collateral_type, current_col_bal + collateral_amount);
 
@@ -188,8 +270,21 @@ pub mod StabilityPool {
         fn distribute_interest(ref self: ContractState, amount: u256) {
             let caller = get_caller_address();
             assert(caller == self.cdp_manager.read(), 'Only CDPManager');
-            let current = self.pending_interest_yield.read();
-            self.pending_interest_yield.write(current + amount);
+
+            let total = self.total_deposits.read();
+            if total == 0 || amount == 0 {
+                return;
+            }
+
+            // G += amount * SCALE / total_deposits
+            let interest_per_unit = amount * SCALE / total;
+            let current_g = self.interest_sum_g.read();
+            self.interest_sum_g.write(current_g + interest_per_unit);
+
+            self.emit(InterestDistributed {
+                amount,
+                timestamp: get_block_timestamp(),
+            });
         }
 
         fn get_total_deposits(self: @ContractState) -> u256 {
@@ -203,23 +298,26 @@ pub mod StabilityPool {
         fn get_depositor_collateral_gain(
             self: @ContractState, depositor: ContractAddress, collateral_type: felt252,
         ) -> u256 {
-            let deposit = self.deposits.read(depositor);
-            if deposit == 0 { return 0; }
-
-            let snapshot_s = self.deposit_snapshot_s.read((depositor, collateral_type));
-            let current_s = self.sum_s.read(collateral_type);
-            let snapshot_p = self.deposit_snapshot_p.read(depositor);
-
-            if snapshot_p == 0 { return 0; }
-            deposit * (current_s - snapshot_s) / snapshot_p
+            self._get_collateral_gain(depositor, collateral_type)
         }
 
         fn get_compounded_deposit(self: @ContractState, depositor: ContractAddress) -> u256 {
             self._get_compounded_deposit(depositor)
         }
+
+        fn get_pending_interest_yield(self: @ContractState, depositor: ContractAddress) -> u256 {
+            let deposit = self.deposits.read(depositor);
+            if deposit == 0 { return 0; }
+
+            let current_g = self.interest_sum_g.read();
+            let snapshot_g = self.deposit_snapshot_g.read(depositor);
+
+            if current_g <= snapshot_g { return 0; }
+
+            deposit * (current_g - snapshot_g) / SCALE
+        }
     }
 
-    // Allow CDPManager to be set
     #[external(v0)]
     fn set_cdp_manager(ref self: ContractState, cdp_manager: ContractAddress) {
         self.ownable.assert_only_owner();
@@ -230,6 +328,22 @@ pub mod StabilityPool {
     fn set_collateral_token(ref self: ContractState, key: felt252, token: ContractAddress) {
         self.ownable.assert_only_owner();
         self.collateral_tokens.write(key, token);
+
+        // Register collateral key if new
+        let count = self.collateral_count.read();
+        let mut found = false;
+        let mut i: u32 = 0;
+        while i < count {
+            if self.collateral_keys.read(i) == key {
+                found = true;
+                break;
+            }
+            i += 1;
+        };
+        if !found {
+            self.collateral_keys.write(count, key);
+            self.collateral_count.write(count + 1);
+        }
     }
 
     #[generate_trait]
@@ -244,13 +358,56 @@ pub mod StabilityPool {
             let snapshot_epoch = self.deposit_snapshot_epoch.read(depositor);
             let current_epoch = self.current_epoch.read();
 
-            // If epoch changed, deposit is fully absorbed
             if snapshot_epoch < current_epoch {
                 return 0;
             }
 
             let current_p = self.product_p.read();
             deposit * current_p / snapshot_p
+        }
+
+        fn _get_collateral_gain(
+            self: @ContractState, depositor: ContractAddress, collateral_type: felt252,
+        ) -> u256 {
+            let deposit = self.deposits.read(depositor);
+            if deposit == 0 { return 0; }
+
+            let snapshot_s = self.deposit_snapshot_s.read((depositor, collateral_type));
+            let current_s = self.sum_s.read(collateral_type);
+            let snapshot_p = self.deposit_snapshot_p.read(depositor);
+
+            if snapshot_p == 0 { return 0; }
+            deposit * (current_s - snapshot_s) / snapshot_p
+        }
+
+        fn _claim_interest_internal(ref self: ContractState, depositor: ContractAddress) {
+            let deposit = self.deposits.read(depositor);
+            if deposit == 0 { return; }
+
+            let current_g = self.interest_sum_g.read();
+            let snapshot_g = self.deposit_snapshot_g.read(depositor);
+
+            if current_g > snapshot_g {
+                let pending = deposit * (current_g - snapshot_g) / SCALE;
+
+                if pending > 0 {
+                    let token = IERC20Dispatcher { contract_address: self.moonusd_token.read() };
+                    token.transfer(depositor, pending);
+
+                    self.emit(InterestClaimed { depositor, amount: pending });
+                }
+            }
+
+            self.deposit_snapshot_g.write(depositor, current_g);
+        }
+
+        fn _enter(ref self: ContractState) {
+            assert(self.reentrancy_status.read() != ENTERED, 'Reentrant call');
+            self.reentrancy_status.write(ENTERED);
+        }
+
+        fn _exit(ref self: ContractState) {
+            self.reentrancy_status.write(NOT_ENTERED);
         }
     }
 }

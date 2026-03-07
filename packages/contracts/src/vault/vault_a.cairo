@@ -61,6 +61,11 @@ pub mod VaultA {
         paused: bool,
         // Deposit queue for batching
         pending_deposits: u256,
+        // Fee
+        treasury: ContractAddress,
+        performance_fee_bps: u256, // default 1000 = 10%
+        // Reentrancy guard
+        reentrancy_status: felt252,
     }
 
     #[event]
@@ -130,6 +135,7 @@ pub mod VaultA {
         self.vault_ltv_target.write(6000);   // 60% LTV target
         self.margin_utilization_cap.write(7000); // 70% margin utilization
         self.current_direction.write('LONG_SHORT');
+        self.performance_fee_bps.write(1000); // 10% performance fee
         self.paused.write(false);
     }
 
@@ -138,6 +144,8 @@ pub mod VaultA {
         fn deposit_btc(
             ref self: ContractState, btc_amount: u256, collateral_type: felt252
         ) -> u256 {
+            self._assert_not_reentered();
+            self.reentrancy_status.write('ENTERED');
             assert(!self.paused.read(), 'Vault paused');
             assert(btc_amount > 0, 'Zero deposit');
 
@@ -173,10 +181,13 @@ pub mod VaultA {
                 nav_per_share,
             });
 
+            self.reentrancy_status.write('NOT_ENTERED');
             shares
         }
 
         fn deposit_usdc(ref self: ContractState, usdc_amount: u256) -> u256 {
+            self._assert_not_reentered();
+            self.reentrancy_status.write('ENTERED');
             assert(!self.paused.read(), 'Vault paused');
             assert(usdc_amount > 0, 'Zero deposit');
 
@@ -208,10 +219,13 @@ pub mod VaultA {
                 nav_per_share,
             });
 
+            self.reentrancy_status.write('NOT_ENTERED');
             shares
         }
 
         fn withdraw(ref self: ContractState, share_amount: u256) {
+            self._assert_not_reentered();
+            self.reentrancy_status.write('ENTERED');
             assert(!self.paused.read(), 'Vault paused');
             let caller = get_caller_address();
             let user_shares = self.shares.read(caller);
@@ -244,6 +258,7 @@ pub mod VaultA {
                 shares_burned: share_amount,
                 btc_returned: withdrawal_value,
             });
+            self.reentrancy_status.write('NOT_ENTERED');
         }
 
         fn trigger_flip(ref self: ContractState, new_direction: felt252) {
@@ -306,13 +321,30 @@ pub mod VaultA {
 
             let funding = self.accrued_funding.read();
             if funding > 0 {
+                // Deduct performance fee
+                let fee_bps = self.performance_fee_bps.read();
+                let fee = funding * fee_bps / BPS;
+                let net_funding = funding - fee;
+
                 self.accrued_funding.write(0);
                 self.total_collateral_posted.write(
-                    self.total_collateral_posted.read() + funding
+                    self.total_collateral_posted.read() + net_funding
                 );
 
+                // Transfer fee to treasury
+                if fee > 0 {
+                    let treasury = self.treasury.read();
+                    let zero: ContractAddress = starknet::contract_address_const::<0>();
+                    if treasury != zero {
+                        let usdc = IERC20Dispatcher {
+                            contract_address: self.usdc_token.read(),
+                        };
+                        usdc.transfer(treasury, fee);
+                    }
+                }
+
                 self.emit(FundingHarvested {
-                    amount: funding,
+                    amount: net_funding,
                     timestamp: get_block_timestamp(),
                 });
             }
@@ -360,6 +392,10 @@ pub mod VaultA {
     // Internal helpers
     #[generate_trait]
     impl InternalImpl of InternalTrait {
+        fn _assert_not_reentered(self: @ContractState) {
+            assert(self.reentrancy_status.read() != 'ENTERED', 'Reentrant call');
+        }
+
         fn _get_nav(self: @ContractState) -> u256 {
             self.total_collateral_posted.read() + self.accrued_funding.read()
         }
@@ -435,5 +471,18 @@ pub mod VaultA {
         assert(caller == self.keeper.read(), 'Only keeper');
         self.long_notional.write(long_notional);
         self.short_notional.write(short_notional);
+    }
+
+    #[external(v0)]
+    fn set_treasury(ref self: ContractState, treasury: ContractAddress) {
+        self.ownable.assert_only_owner();
+        self.treasury.write(treasury);
+    }
+
+    #[external(v0)]
+    fn set_performance_fee(ref self: ContractState, fee_bps: u256) {
+        self.ownable.assert_only_owner();
+        assert(fee_bps <= 3000, 'Fee too high'); // Max 30%
+        self.performance_fee_bps.write(fee_bps);
     }
 }
