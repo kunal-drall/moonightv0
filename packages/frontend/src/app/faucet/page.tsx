@@ -19,10 +19,10 @@ const MOONUSD_ADDRESS = process.env.NEXT_PUBLIC_MOONUSD || "";
 const EXPLORER_BASE = "https://sepolia.voyager.online";
 
 const MINT_AMOUNTS = [
-  { label: "0.1 WBTC", sats: "10000000000000000" },
-  { label: "0.5 WBTC", sats: "50000000000000000" },
-  { label: "1 WBTC", sats: "100000000000000000" },
-  { label: "5 WBTC", sats: "500000000000000000" },
+  { label: "0.1 WBTC", sats: "10000000" },
+  { label: "0.5 WBTC", sats: "50000000" },
+  { label: "1 WBTC", sats: "100000000" },
+  { label: "5 WBTC", sats: "500000000" },
 ];
 
 const MOCK_WBTC_ABI = [
@@ -90,7 +90,7 @@ export default function FaucetPage() {
             options: {
               address: MOCK_WBTC_ADDRESS,
               symbol: "WBTC",
-              decimals: 18,
+              decimals: 8,
               name: "Wrapped BTC",
             },
           },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useAccount } from "@starknet-react/core";
 import {
   InformationCircleIcon,
@@ -8,8 +8,13 @@ import {
   ExclamationTriangleIcon,
   CheckCircleIcon,
   CurrencyDollarIcon,
+  ArrowTopRightOnSquareIcon,
 } from "@heroicons/react/24/outline";
 import StatsCard from "@/components/StatsCard";
+import { Contract, cairo, RpcProvider } from "starknet";
+import { ABIS, CONTRACT_ADDRESSES } from "@/hooks/useMoonightContracts";
+
+const EXPLORER_BASE = "https://sepolia.voyager.online";
 
 function useLiveBtcPrice(fallback: number) {
   const [price, setPrice] = useState(fallback);
@@ -31,15 +36,20 @@ function useLiveBtcPrice(fallback: number) {
   }, []);
   return price;
 }
-const MIN_COLLATERAL_RATIO = 150;
-const LIQUIDATION_RATIO = 130;
+
+const MIN_COLLATERAL_RATIO = 125; // 80% LTV = 125% min c-ratio
+const LIQUIDATION_RATIO = 110; // HF < 1.0 = liquidation
 
 const INTEREST_RATES = [
-  { label: "0%", value: 0, description: "Highest collateral (200%)" },
-  { label: "0.5%", value: 0.5, description: "Standard (175%)" },
-  { label: "1%", value: 1, description: "Moderate (160%)" },
-  { label: "2%", value: 2, description: "Aggressive (150%)" },
+  { label: "0.5%", value: 50, description: "Minimum rate" },
+  { label: "1%", value: 100, description: "Standard" },
+  { label: "2%", value: 200, description: "Moderate" },
+  { label: "5%", value: 500, description: "Higher rate" },
 ];
+
+const MIN_DEBT_MOONUSD = 200;
+const WBTC_DECIMALS = 8;
+const MOONUSD_DECIMALS = 18;
 
 function getHealthFactorColor(hf: number): string {
   if (hf >= 2.0) return "text-green-400";
@@ -68,11 +78,41 @@ function getHealthFactorBarColor(hf: number): string {
 }
 
 export default function MintPage() {
-  const { isConnected } = useAccount();
-  const BTC_PRICE = useLiveBtcPrice(66000);
+  const { address, account, isConnected } = useAccount();
+  const BTC_PRICE = useLiveBtcPrice(90000);
   const [collateralAmount, setCollateralAmount] = useState<string>("");
   const [borrowAmount, setBorrowAmount] = useState<string>("");
   const [selectedRate, setSelectedRate] = useState<number>(1);
+  const [wbtcBalance, setWbtcBalance] = useState<string>("0.00");
+  const [txHash, setTxHash] = useState("");
+  const [minting, setMinting] = useState(false);
+  const [error, setError] = useState("");
+  const [totalDebt, setTotalDebt] = useState<string>("0");
+  const [activePositions, setActivePositions] = useState<string>("0");
+
+  // Fetch WBTC balance
+  useEffect(() => {
+    if (!address || !isConnected || CONTRACT_ADDRESSES.mockWbtc === "0x0") return;
+    const provider = new RpcProvider({ nodeUrl: "https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_8/demo" });
+    const wbtc = new Contract({ abi: ABIS.erc20, address: CONTRACT_ADDRESSES.mockWbtc, providerOrAccount: provider });
+    wbtc.balance_of(address).then((bal: bigint) => {
+      const formatted = Number(bal) / 10 ** WBTC_DECIMALS;
+      setWbtcBalance(formatted.toFixed(WBTC_DECIMALS));
+    }).catch(() => {});
+  }, [address, isConnected, txHash]);
+
+  // Fetch protocol stats
+  useEffect(() => {
+    if (CONTRACT_ADDRESSES.cdpManager === "0x0") return;
+    const provider = new RpcProvider({ nodeUrl: "https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_8/demo" });
+    const cdp = new Contract({ abi: ABIS.cdpManager, address: CONTRACT_ADDRESSES.cdpManager, providerOrAccount: provider });
+    cdp.get_total_debt().then((d: bigint) => {
+      setTotalDebt((Number(d) / 10 ** MOONUSD_DECIMALS).toLocaleString("en-US", { maximumFractionDigits: 2 }));
+    }).catch(() => {});
+    cdp.get_active_positions().then((n: bigint) => {
+      setActivePositions(Number(n).toString());
+    }).catch(() => {});
+  }, [txHash]);
 
   const collateralValue = useMemo(() => {
     const amount = parseFloat(collateralAmount) || 0;
@@ -80,7 +120,8 @@ export default function MintPage() {
   }, [collateralAmount, BTC_PRICE]);
 
   const maxBorrow = useMemo(() => {
-    return collateralValue / (MIN_COLLATERAL_RATIO / 100);
+    // 80% LTV means max borrow = collateral_value * 0.8
+    return collateralValue * 0.8;
   }, [collateralValue]);
 
   const collateralRatio = useMemo(() => {
@@ -92,21 +133,71 @@ export default function MintPage() {
   const healthFactor = useMemo(() => {
     const borrow = parseFloat(borrowAmount) || 0;
     if (borrow === 0) return 0;
-    return collateralValue / (borrow * (LIQUIDATION_RATIO / 100));
+    // HF = collateral_value * ltv_max / (BPS * debt) simplified:
+    // HF = collateral_value * 0.8 / debt
+    return (collateralValue * 0.8) / borrow;
   }, [collateralValue, borrowAmount]);
 
   const liquidationPrice = useMemo(() => {
     const borrow = parseFloat(borrowAmount) || 0;
     const collateral = parseFloat(collateralAmount) || 0;
     if (collateral === 0) return 0;
-    return (borrow * (LIQUIDATION_RATIO / 100)) / collateral;
+    // Liquidation when HF <= 1: collateral * price * 0.8 / debt = 1
+    // price = debt / (collateral * 0.8)
+    return borrow / (collateral * 0.8);
   }, [collateralAmount, borrowAmount]);
 
   const isValidPosition = useMemo(() => {
     const collateral = parseFloat(collateralAmount) || 0;
     const borrow = parseFloat(borrowAmount) || 0;
-    return collateral > 0 && borrow > 0 && collateralRatio >= MIN_COLLATERAL_RATIO;
+    return (
+      collateral > 0 &&
+      borrow >= MIN_DEBT_MOONUSD &&
+      collateralRatio >= MIN_COLLATERAL_RATIO
+    );
   }, [collateralAmount, borrowAmount, collateralRatio]);
+
+  const handleMint = useCallback(async () => {
+    if (!address || !account || !isValidPosition) return;
+    setMinting(true);
+    setError("");
+    setTxHash("");
+
+    try {
+      const collateral = parseFloat(collateralAmount);
+      const borrow = parseFloat(borrowAmount);
+      const rateBps = INTEREST_RATES[selectedRate].value;
+
+      // Convert to contract units
+      const collateralSats = BigInt(Math.round(collateral * 10 ** WBTC_DECIMALS));
+      const mintWei = BigInt(Math.round(borrow * 10 ** MOONUSD_DECIMALS));
+      const rateBigInt = BigInt(rateBps);
+
+      // Build approve + open_position multicall
+      const wbtc = new Contract({ abi: ABIS.erc20, address: CONTRACT_ADDRESSES.mockWbtc, providerOrAccount: account });
+      const cdpManager = new Contract({ abi: ABIS.cdpManager, address: CONTRACT_ADDRESSES.cdpManager, providerOrAccount: account });
+
+      const approveCall = wbtc.populate("approve", {
+        spender: CONTRACT_ADDRESSES.cdpManager,
+        amount: cairo.uint256(collateralSats),
+      });
+
+      const openCall = cdpManager.populate("open_position", {
+        collateral_type: "WBTC",
+        collateral_amount: cairo.uint256(collateralSats),
+        mint_amount: cairo.uint256(mintWei),
+        interest_rate: cairo.uint256(rateBigInt),
+      });
+
+      const result = await account.execute([approveCall, openCall]);
+      setTxHash(result.transaction_hash);
+    } catch (e: any) {
+      console.error("Mint failed:", e);
+      setError(e?.message?.slice(0, 300) || "Transaction failed");
+    } finally {
+      setMinting(false);
+    }
+  }, [address, account, collateralAmount, borrowAmount, selectedRate, isValidPosition]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
@@ -130,7 +221,7 @@ export default function MintPage() {
                 Collateral
               </h2>
               <span className="text-xs text-dark-500">
-                Balance: 0.00 WBTC
+                Balance: {wbtcBalance} WBTC
               </span>
             </div>
 
@@ -173,7 +264,7 @@ export default function MintPage() {
                 </button>
               ))}
               <button
-                onClick={() => setCollateralAmount("0")}
+                onClick={() => setCollateralAmount(wbtcBalance)}
                 className="px-3 py-1.5 rounded-lg text-xs font-medium text-dark-400 bg-dark-700/50 border border-dark-600/30 hover:border-primary-500/30 hover:text-dark-200 transition-all"
               >
                 MAX
@@ -245,8 +336,8 @@ export default function MintPage() {
               <div className="group relative">
                 <InformationCircleIcon className="w-4 h-4 text-dark-500 cursor-help" />
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 rounded-lg bg-dark-700 border border-dark-600/50 text-xs text-dark-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                  Lower interest rates require higher collateral ratios. Choose
-                  based on your risk preference.
+                  Choose your annual interest rate. Lower rates are cheaper but
+                  positions are redeemed first during redemptions.
                 </div>
               </div>
             </div>
@@ -277,8 +368,22 @@ export default function MintPage() {
             </div>
           </div>
 
-          {/* Validation Warning */}
-          {parseFloat(borrowAmount) > 0 &&
+          {/* Validation Warnings */}
+          {parseFloat(borrowAmount) > 0 && parseFloat(borrowAmount) < MIN_DEBT_MOONUSD && (
+            <div className="flex items-start space-x-3 p-4 rounded-xl bg-red-500/10 border border-red-500/20">
+              <ExclamationTriangleIcon className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-red-400">
+                  Below minimum debt
+                </p>
+                <p className="text-xs text-red-400/70 mt-0.5">
+                  Minimum borrow is {MIN_DEBT_MOONUSD} moonUSD.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {parseFloat(borrowAmount) >= MIN_DEBT_MOONUSD &&
             collateralRatio > 0 &&
             collateralRatio < MIN_COLLATERAL_RATIO && (
               <div className="flex items-start space-x-3 p-4 rounded-xl bg-red-500/10 border border-red-500/20">
@@ -298,17 +403,56 @@ export default function MintPage() {
 
           {/* Mint Button */}
           <button
-            disabled={!isConnected || !isValidPosition}
+            onClick={handleMint}
+            disabled={!isConnected || !isValidPosition || minting}
             className="btn-primary w-full text-base py-4"
           >
             {!isConnected
               ? "Connect Wallet to Mint"
+              : minting
+              ? "Confirming in Wallet..."
               : !isValidPosition
-                ? "Enter Valid Amounts"
+                ? parseFloat(borrowAmount) > 0 && parseFloat(borrowAmount) < MIN_DEBT_MOONUSD
+                  ? `Minimum ${MIN_DEBT_MOONUSD} moonUSD`
+                  : "Enter Valid Amounts"
                 : "Mint moonUSD"}
           </button>
 
-          {isValidPosition && (
+          {/* Success */}
+          {txHash && (
+            <div className="p-4 rounded-xl bg-green-500/5 border border-green-500/20">
+              <div className="flex items-center gap-2 mb-2">
+                <CheckCircleIcon className="w-5 h-5 text-green-400" />
+                <p className="text-sm font-semibold text-green-400">
+                  Position opened successfully!
+                </p>
+              </div>
+              <p className="text-xs text-dark-400 mb-2">
+                You deposited {collateralAmount} WBTC and minted {parseFloat(borrowAmount).toLocaleString()} moonUSD.
+              </p>
+              <a
+                href={`${EXPLORER_BASE}/tx/${txHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-primary-400 hover:text-primary-300 flex items-center gap-1 transition-colors"
+              >
+                View on Voyager
+                <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          )}
+
+          {/* Error */}
+          {error && (
+            <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/20">
+              <div className="flex items-center gap-2">
+                <ExclamationTriangleIcon className="w-5 h-5 text-red-400 flex-shrink-0" />
+                <p className="text-xs text-red-300 break-all">{error}</p>
+              </div>
+            </div>
+          )}
+
+          {isValidPosition && !txHash && (
             <div className="flex items-center justify-center space-x-2 text-xs text-dark-500">
               <CheckCircleIcon className="w-3.5 h-3.5 text-green-500" />
               <span>
@@ -424,10 +568,18 @@ export default function MintPage() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-dark-400">
-                  Min. Collateral Ratio
+                  Max LTV
                 </span>
                 <span className="text-sm font-medium text-dark-500">
-                  {MIN_COLLATERAL_RATIO}%
+                  80%
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-dark-400">
+                  Min. Debt
+                </span>
+                <span className="text-sm font-medium text-dark-500">
+                  {MIN_DEBT_MOONUSD} moonUSD
                 </span>
               </div>
             </div>
@@ -441,26 +593,26 @@ export default function MintPage() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-dark-400">
-                  Total Collateral
+                  BTC Price
                 </span>
                 <span className="text-sm font-medium text-dark-200">
-                  256.4 BTC
+                  ${BTC_PRICE.toLocaleString()}
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-dark-400">
-                  moonUSD Supply
+                  Total Debt
                 </span>
                 <span className="text-sm font-medium text-dark-200">
-                  18.2M
+                  {totalDebt} moonUSD
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-dark-400">
-                  Global C-Ratio
+                  Active Positions
                 </span>
-                <span className="text-sm font-medium text-green-400">
-                  187.3%
+                <span className="text-sm font-medium text-dark-200">
+                  {activePositions}
                 </span>
               </div>
             </div>

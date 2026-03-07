@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
-import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
+import { useState, useEffect } from "react";
+import { Bars3Icon, XMarkIcon, ShieldCheckIcon } from "@heroicons/react/24/outline";
 import ConnectWallet from "./ConnectWallet";
 
 const isMainnet = process.env.NEXT_PUBLIC_STARKNET_NETWORK === "mainnet";
@@ -19,6 +19,17 @@ const navLinks = [
 export default function Header() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [privacyMode, setPrivacyMode] = useState(false);
+
+  useEffect(() => {
+    setPrivacyMode(localStorage.getItem("moonight-privacy") === "true");
+  }, []);
+
+  const togglePrivacy = () => {
+    const next = !privacyMode;
+    setPrivacyMode(next);
+    localStorage.setItem("moonight-privacy", String(next));
+  };
 
   return (
     <header className="sticky top-0 z-40 border-b border-dark-700/50 bg-dark-900/80 backdrop-blur-xl">
@@ -70,6 +81,20 @@ export default function Header() {
 
           {/* Right Section */}
           <div className="flex items-center space-x-3">
+            {/* Privacy Mode Toggle */}
+            <button
+              onClick={togglePrivacy}
+              className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-all ${
+                privacyMode
+                  ? "text-green-400 bg-green-500/10 border-green-500/20 hover:bg-green-500/15"
+                  : "text-dark-400 bg-dark-800/50 border-dark-700/50 hover:text-dark-200 hover:border-dark-600"
+              }`}
+              title={privacyMode ? "Privacy: Enhanced (powered by S-two)" : "Enable privacy mode"}
+            >
+              <ShieldCheckIcon className="w-3.5 h-3.5" />
+              {privacyMode ? "Private" : "Privacy"}
+            </button>
+
             {/* Network switcher link */}
             <a
               href={isMainnet ? "https://sepolia.moonight.fun" : "https://app.moonight.fun"}

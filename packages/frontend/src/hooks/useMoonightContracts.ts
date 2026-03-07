@@ -14,187 +14,308 @@ const CONTRACT_ADDRESSES = {
   stabilityPool: process.env.NEXT_PUBLIC_STABILITY_POOL || "0x0",
   redemptionManager: process.env.NEXT_PUBLIC_REDEMPTION_MANAGER || "0x0",
   protocolConfig: process.env.NEXT_PUBLIC_PROTOCOL_CONFIG || "0x0",
+  mockWbtc: process.env.NEXT_PUBLIC_MOCK_WBTC || "0x0",
 } as const;
 
 /**
- * Minimal ABIs for interacting with Moonight Protocol contracts.
- * Replace with full generated ABIs after contract compilation.
+ * Cairo 2 ABIs extracted from compiled contracts.
+ * Uses interface+impl pattern required by starknet.js v8.
  */
 const ABIS = {
   erc20: [
     {
-      name: "balance_of",
-      type: "function",
-      inputs: [{ name: "account", type: "felt" }],
-      outputs: [{ name: "balance", type: "Uint256" }],
-      state_mutability: "view",
-    },
-    {
-      name: "approve",
-      type: "function",
-      inputs: [
-        { name: "spender", type: "felt" },
-        { name: "amount", type: "Uint256" },
+      type: "struct" as const,
+      name: "core::integer::u256",
+      members: [
+        { name: "low", type: "core::integer::u128" },
+        { name: "high", type: "core::integer::u128" },
       ],
-      outputs: [{ name: "success", type: "felt" }],
-      state_mutability: "external",
     },
     {
-      name: "transfer",
-      type: "function",
-      inputs: [
-        { name: "recipient", type: "felt" },
-        { name: "amount", type: "Uint256" },
+      type: "interface" as const,
+      name: "openzeppelin_token::erc20::interface::IERC20",
+      items: [
+        {
+          type: "function" as const,
+          name: "total_supply",
+          inputs: [],
+          outputs: [{ type: "core::integer::u256" }],
+          state_mutability: "view" as const,
+        },
+        {
+          type: "function" as const,
+          name: "balance_of",
+          inputs: [{ name: "account", type: "core::starknet::contract_address::ContractAddress" }],
+          outputs: [{ type: "core::integer::u256" }],
+          state_mutability: "view" as const,
+        },
+        {
+          type: "function" as const,
+          name: "allowance",
+          inputs: [
+            { name: "owner", type: "core::starknet::contract_address::ContractAddress" },
+            { name: "spender", type: "core::starknet::contract_address::ContractAddress" },
+          ],
+          outputs: [{ type: "core::integer::u256" }],
+          state_mutability: "view" as const,
+        },
+        {
+          type: "function" as const,
+          name: "transfer",
+          inputs: [
+            { name: "recipient", type: "core::starknet::contract_address::ContractAddress" },
+            { name: "amount", type: "core::integer::u256" },
+          ],
+          outputs: [{ type: "core::bool" }],
+          state_mutability: "external" as const,
+        },
+        {
+          type: "function" as const,
+          name: "transfer_from",
+          inputs: [
+            { name: "sender", type: "core::starknet::contract_address::ContractAddress" },
+            { name: "recipient", type: "core::starknet::contract_address::ContractAddress" },
+            { name: "amount", type: "core::integer::u256" },
+          ],
+          outputs: [{ type: "core::bool" }],
+          state_mutability: "external" as const,
+        },
+        {
+          type: "function" as const,
+          name: "approve",
+          inputs: [
+            { name: "spender", type: "core::starknet::contract_address::ContractAddress" },
+            { name: "amount", type: "core::integer::u256" },
+          ],
+          outputs: [{ type: "core::bool" }],
+          state_mutability: "external" as const,
+        },
       ],
-      outputs: [{ name: "success", type: "felt" }],
-      state_mutability: "external",
     },
     {
-      name: "total_supply",
-      type: "function",
-      inputs: [],
-      outputs: [{ name: "total_supply", type: "Uint256" }],
-      state_mutability: "view",
+      type: "impl" as const,
+      name: "ERC20Impl",
+      interface_name: "openzeppelin_token::erc20::interface::IERC20",
     },
   ],
 
   cdpManager: [
     {
-      name: "open_position",
-      type: "function",
-      inputs: [
-        { name: "collateral_type", type: "felt" },
-        { name: "collateral_amount", type: "Uint256" },
-        { name: "debt_amount", type: "Uint256" },
-        { name: "interest_rate_bps", type: "felt" },
+      type: "struct" as const,
+      name: "core::integer::u256",
+      members: [
+        { name: "low", type: "core::integer::u128" },
+        { name: "high", type: "core::integer::u128" },
       ],
-      outputs: [{ name: "position_id", type: "felt" }],
-      state_mutability: "external",
     },
     {
-      name: "close_position",
-      type: "function",
-      inputs: [{ name: "position_id", type: "felt" }],
-      outputs: [],
-      state_mutability: "external",
-    },
-    {
-      name: "deposit_collateral",
-      type: "function",
-      inputs: [
-        { name: "position_id", type: "felt" },
-        { name: "amount", type: "Uint256" },
+      type: "struct" as const,
+      name: "moonight::interfaces::i_cdp_manager::PositionData",
+      members: [
+        { name: "collateral_type", type: "core::felt252" },
+        { name: "collateral_amount", type: "core::integer::u256" },
+        { name: "debt", type: "core::integer::u256" },
+        { name: "interest_rate", type: "core::integer::u256" },
+        { name: "last_update", type: "core::integer::u64" },
+        { name: "created_at", type: "core::integer::u64" },
       ],
-      outputs: [],
-      state_mutability: "external",
     },
     {
-      name: "withdraw_collateral",
-      type: "function",
-      inputs: [
-        { name: "position_id", type: "felt" },
-        { name: "amount", type: "Uint256" },
+      type: "interface" as const,
+      name: "moonight::interfaces::i_cdp_manager::ICDPManager",
+      items: [
+        {
+          type: "function" as const,
+          name: "open_position",
+          inputs: [
+            { name: "collateral_type", type: "core::felt252" },
+            { name: "collateral_amount", type: "core::integer::u256" },
+            { name: "mint_amount", type: "core::integer::u256" },
+            { name: "interest_rate", type: "core::integer::u256" },
+          ],
+          outputs: [{ type: "core::integer::u256" }],
+          state_mutability: "external" as const,
+        },
+        {
+          type: "function" as const,
+          name: "close_position",
+          inputs: [{ name: "position_id", type: "core::integer::u256" }],
+          outputs: [],
+          state_mutability: "external" as const,
+        },
+        {
+          type: "function" as const,
+          name: "deposit_collateral",
+          inputs: [
+            { name: "position_id", type: "core::integer::u256" },
+            { name: "amount", type: "core::integer::u256" },
+          ],
+          outputs: [],
+          state_mutability: "external" as const,
+        },
+        {
+          type: "function" as const,
+          name: "withdraw_collateral",
+          inputs: [
+            { name: "position_id", type: "core::integer::u256" },
+            { name: "amount", type: "core::integer::u256" },
+          ],
+          outputs: [],
+          state_mutability: "external" as const,
+        },
+        {
+          type: "function" as const,
+          name: "mint_more",
+          inputs: [
+            { name: "position_id", type: "core::integer::u256" },
+            { name: "amount", type: "core::integer::u256" },
+          ],
+          outputs: [],
+          state_mutability: "external" as const,
+        },
+        {
+          type: "function" as const,
+          name: "repay",
+          inputs: [
+            { name: "position_id", type: "core::integer::u256" },
+            { name: "amount", type: "core::integer::u256" },
+          ],
+          outputs: [],
+          state_mutability: "external" as const,
+        },
+        {
+          type: "function" as const,
+          name: "set_rate",
+          inputs: [
+            { name: "position_id", type: "core::integer::u256" },
+            { name: "new_rate", type: "core::integer::u256" },
+          ],
+          outputs: [],
+          state_mutability: "external" as const,
+        },
+        {
+          type: "function" as const,
+          name: "get_position",
+          inputs: [{ name: "position_id", type: "core::integer::u256" }],
+          outputs: [{ type: "moonight::interfaces::i_cdp_manager::PositionData" }],
+          state_mutability: "view" as const,
+        },
+        {
+          type: "function" as const,
+          name: "get_health_factor",
+          inputs: [{ name: "position_id", type: "core::integer::u256" }],
+          outputs: [{ type: "core::integer::u256" }],
+          state_mutability: "view" as const,
+        },
+        {
+          type: "function" as const,
+          name: "get_current_debt",
+          inputs: [{ name: "position_id", type: "core::integer::u256" }],
+          outputs: [{ type: "core::integer::u256" }],
+          state_mutability: "view" as const,
+        },
+        {
+          type: "function" as const,
+          name: "get_market_average_rate",
+          inputs: [],
+          outputs: [{ type: "core::integer::u256" }],
+          state_mutability: "view" as const,
+        },
+        {
+          type: "function" as const,
+          name: "get_borrow_fee",
+          inputs: [{ name: "mint_amount", type: "core::integer::u256" }],
+          outputs: [{ type: "core::integer::u256" }],
+          state_mutability: "view" as const,
+        },
+        {
+          type: "function" as const,
+          name: "get_total_debt",
+          inputs: [],
+          outputs: [{ type: "core::integer::u256" }],
+          state_mutability: "view" as const,
+        },
+        {
+          type: "function" as const,
+          name: "get_active_positions",
+          inputs: [],
+          outputs: [{ type: "core::integer::u256" }],
+          state_mutability: "view" as const,
+        },
       ],
-      outputs: [],
-      state_mutability: "external",
     },
     {
-      name: "mint_debt",
-      type: "function",
-      inputs: [
-        { name: "position_id", type: "felt" },
-        { name: "amount", type: "Uint256" },
-      ],
-      outputs: [],
-      state_mutability: "external",
-    },
-    {
-      name: "repay_debt",
-      type: "function",
-      inputs: [
-        { name: "position_id", type: "felt" },
-        { name: "amount", type: "Uint256" },
-      ],
-      outputs: [],
-      state_mutability: "external",
-    },
-    {
-      name: "get_position",
-      type: "function",
-      inputs: [{ name: "position_id", type: "felt" }],
-      outputs: [
-        { name: "owner", type: "felt" },
-        { name: "collateral", type: "Uint256" },
-        { name: "debt", type: "Uint256" },
-        { name: "interest_rate", type: "felt" },
-      ],
-      state_mutability: "view",
-    },
-    {
-      name: "get_health_factor",
-      type: "function",
-      inputs: [{ name: "position_id", type: "felt" }],
-      outputs: [{ name: "health_factor", type: "Uint256" }],
-      state_mutability: "view",
-    },
-  ],
-
-  erc4626Vault: [
-    {
-      name: "deposit",
-      type: "function",
-      inputs: [
-        { name: "assets", type: "Uint256" },
-        { name: "receiver", type: "felt" },
-      ],
-      outputs: [{ name: "shares", type: "Uint256" }],
-      state_mutability: "external",
-    },
-    {
-      name: "withdraw",
-      type: "function",
-      inputs: [
-        { name: "assets", type: "Uint256" },
-        { name: "receiver", type: "felt" },
-        { name: "owner", type: "felt" },
-      ],
-      outputs: [{ name: "shares", type: "Uint256" }],
-      state_mutability: "external",
-    },
-    {
-      name: "total_assets",
-      type: "function",
-      inputs: [],
-      outputs: [{ name: "total_assets", type: "Uint256" }],
-      state_mutability: "view",
-    },
-    {
-      name: "convert_to_shares",
-      type: "function",
-      inputs: [{ name: "assets", type: "Uint256" }],
-      outputs: [{ name: "shares", type: "Uint256" }],
-      state_mutability: "view",
-    },
-    {
-      name: "convert_to_assets",
-      type: "function",
-      inputs: [{ name: "shares", type: "Uint256" }],
-      outputs: [{ name: "assets", type: "Uint256" }],
-      state_mutability: "view",
+      type: "impl" as const,
+      name: "CDPManagerImpl",
+      interface_name: "moonight::interfaces::i_cdp_manager::ICDPManager",
     },
   ],
 
   oracle: [
     {
-      name: "get_price",
-      type: "function",
-      inputs: [{ name: "collateral_type", type: "felt" }],
-      outputs: [
-        { name: "price", type: "Uint256" },
-        { name: "decimals", type: "felt" },
-        { name: "last_updated", type: "felt" },
+      type: "struct" as const,
+      name: "core::integer::u256",
+      members: [
+        { name: "low", type: "core::integer::u128" },
+        { name: "high", type: "core::integer::u128" },
       ],
-      state_mutability: "view",
+    },
+    {
+      type: "interface" as const,
+      name: "moonight::interfaces::i_price_oracle::IPriceOracle",
+      items: [
+        {
+          type: "function" as const,
+          name: "get_price",
+          inputs: [{ name: "collateral_type", type: "core::felt252" }],
+          outputs: [{ type: "(core::integer::u256, core::integer::u8)" }],
+          state_mutability: "view" as const,
+        },
+        {
+          type: "function" as const,
+          name: "get_price_twap",
+          inputs: [{ name: "collateral_type", type: "core::felt252" }],
+          outputs: [{ type: "(core::integer::u256, core::integer::u8)" }],
+          state_mutability: "view" as const,
+        },
+      ],
+    },
+    {
+      type: "impl" as const,
+      name: "PriceOracleImpl",
+      interface_name: "moonight::interfaces::i_price_oracle::IPriceOracle",
+    },
+  ],
+
+  mockWbtc: [
+    {
+      type: "struct" as const,
+      name: "core::integer::u256",
+      members: [
+        { name: "low", type: "core::integer::u128" },
+        { name: "high", type: "core::integer::u128" },
+      ],
+    },
+    {
+      type: "interface" as const,
+      name: "moonight::token::mock_wbtc::IMockWBTC",
+      items: [
+        {
+          type: "function" as const,
+          name: "mint_to",
+          inputs: [
+            { name: "to", type: "core::starknet::contract_address::ContractAddress" },
+            { name: "amount", type: "core::integer::u256" },
+          ],
+          outputs: [],
+          state_mutability: "external" as const,
+        },
+      ],
+    },
+    {
+      type: "impl" as const,
+      name: "MockWBTCImpl",
+      interface_name: "moonight::token::mock_wbtc::IMockWBTC",
     },
   ],
 } as const;

@@ -12,6 +12,8 @@ import {
   BanknotesIcon,
 } from "@heroicons/react/24/outline";
 import StatsCard from "@/components/StatsCard";
+import { Contract, RpcProvider } from "starknet";
+import { ABIS, CONTRACT_ADDRESSES } from "@/hooks/useMoonightContracts";
 
 function useBtcPrice() {
   const [price, setPrice] = useState<string>("--");
@@ -104,21 +106,50 @@ const features = [
   },
 ];
 
+function useProtocolStats() {
+  const [totalDebt, setTotalDebt] = useState("0");
+  const [moonusdSupply, setMoonusdSupply] = useState("0");
+  const [activePositions, setActivePositions] = useState("0");
+
+  useEffect(() => {
+    if (CONTRACT_ADDRESSES.cdpManager === "0x0") return;
+    const provider = new RpcProvider({ nodeUrl: "https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_8/demo" });
+
+    const cdp = new Contract({ abi: ABIS.cdpManager, address: CONTRACT_ADDRESSES.cdpManager, providerOrAccount: provider });
+    cdp.get_total_debt().then((d: bigint) => {
+      const val = Number(d) / 1e18;
+      setTotalDebt(val > 1000 ? `${(val / 1000).toFixed(1)}K` : val.toLocaleString("en-US", { maximumFractionDigits: 2 }));
+    }).catch(() => {});
+    cdp.get_active_positions().then((n: bigint) => {
+      setActivePositions(Number(n).toString());
+    }).catch(() => {});
+
+    const moonusd = new Contract({ abi: ABIS.erc20, address: CONTRACT_ADDRESSES.moonUSD, providerOrAccount: provider });
+    moonusd.total_supply().then((s: bigint) => {
+      const val = Number(s) / 1e18;
+      setMoonusdSupply(val > 1000 ? `${(val / 1000).toFixed(1)}K` : val.toLocaleString("en-US", { maximumFractionDigits: 2 }));
+    }).catch(() => {});
+  }, []);
+
+  return { totalDebt, moonusdSupply, activePositions };
+}
+
 export default function HomePage() {
   const btc = useBtcPrice();
+  const { totalDebt, moonusdSupply, activePositions } = useProtocolStats();
 
   const stats = [
     {
-      title: "Total Value Locked",
-      value: "$0",
-      subtitle: "Across all vaults",
+      title: "Total Debt",
+      value: `${totalDebt} moonUSD`,
+      subtitle: `${activePositions} active positions`,
       change: { value: "--", positive: true },
       icon: <CubeTransparentIcon className="w-5 h-5 text-primary-400" />,
       accentColor: "primary" as const,
     },
     {
       title: "moonUSD Supply",
-      value: "0",
+      value: moonusdSupply,
       subtitle: "Circulating supply",
       change: { value: "--", positive: true },
       icon: <CurrencyDollarIcon className="w-5 h-5 text-accent-400" />,

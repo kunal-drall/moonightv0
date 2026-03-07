@@ -45,12 +45,12 @@ const vaults: Vault[] = [
     description:
       "Earn stable yield through a hedged BTC position. The protocol simultaneously holds spot BTC and opens a short perpetual position, capturing funding rate yield while neutralizing price exposure.",
     icon: <ShieldCheckIcon className="w-7 h-7" />,
-    apy: "8.2%",
-    apyRange: "5-12% APY",
-    tvl: "$14.6M",
+    apy: "5-12%",
+    apyRange: "Est. APY range",
+    tvl: "--",
     deposited: "0.00 moonUSD",
-    capacity: "$25M",
-    capacityUsed: 58,
+    capacity: "--",
+    capacityUsed: 0,
     riskLevel: "Low",
     strategy: [
       "Spot BTC + Short Perp",
@@ -66,7 +66,7 @@ const vaults: Vault[] = [
       "No impermanent loss",
       "Weekly harvesting",
     ],
-    status: "Active",
+    status: "Coming Soon",
   },
   {
     id: "vault-b",
@@ -77,10 +77,10 @@ const vaults: Vault[] = [
     icon: <FireIcon className="w-7 h-7" />,
     apy: "Variable",
     apyRange: "BTC upside x3",
-    tvl: "$6.8M",
+    tvl: "--",
     deposited: "0.00 BTC",
-    capacity: "$15M",
-    capacityUsed: 45,
+    capacity: "--",
+    capacityUsed: 0,
     riskLevel: "High",
     strategy: [
       "Recursive CDP loops",
@@ -96,7 +96,7 @@ const vaults: Vault[] = [
       "Keeper-based safety",
       "One-click unwind",
     ],
-    status: "Active",
+    status: "Coming Soon",
   },
   {
     id: "vault-c",
@@ -105,12 +105,12 @@ const vaults: Vault[] = [
     description:
       "Maximize returns on your moonUSD through curated DeFi yield strategies. Allocates across lending protocols, liquidity pools, and structured products for optimized risk-adjusted returns.",
     icon: <BoltIcon className="w-7 h-7" />,
-    apy: "14.7%",
-    apyRange: "8-25% APY",
-    tvl: "$10.2M",
+    apy: "8-25%",
+    apyRange: "Est. APY range",
+    tvl: "--",
     deposited: "0.00 moonUSD",
-    capacity: "$20M",
-    capacityUsed: 51,
+    capacity: "--",
+    capacityUsed: 0,
     riskLevel: "Medium",
     strategy: [
       "Multi-protocol allocation",
@@ -126,7 +126,7 @@ const vaults: Vault[] = [
       "Risk-managed allocation",
       "Withdrawal anytime",
     ],
-    status: "Active",
+    status: "Coming Soon",
   },
   {
     id: "vault-d",
@@ -135,12 +135,12 @@ const vaults: Vault[] = [
     description:
       "Earn premium yield by selling covered calls on your BTC. Deposit BTC, receive Principal Tokens (PT) and Yield Tokens (YT). Trade yield separately from principal — Pendle-style tokenization on Starknet.",
     icon: <ChartBarIcon className="w-7 h-7" />,
-    apy: "18.5%",
-    apyRange: "12-30% APY",
-    tvl: "$4.1M",
+    apy: "12-30%",
+    apyRange: "Est. APY range",
+    tvl: "--",
     deposited: "0.00 BTC",
-    capacity: "$10M",
-    capacityUsed: 41,
+    capacity: "--",
+    capacityUsed: 0,
     riskLevel: "Medium",
     strategy: [
       "OTM covered calls",
@@ -156,7 +156,7 @@ const vaults: Vault[] = [
       "Principal protected (OTM)",
       "Weekly epochs",
     ],
-    status: "Active",
+    status: "Coming Soon",
   },
 ];
 
@@ -189,17 +189,15 @@ export default function VaultsPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
         <StatsCard
           title="Total Vault TVL"
-          value="$24.8M"
-          subtitle="Across all vaults"
-          change={{ value: "+8.3%", positive: true }}
+          value="--"
+          subtitle="Vaults launching soon"
           icon={<ChartBarIcon className="w-5 h-5 text-primary-400" />}
           accentColor="primary"
         />
         <StatsCard
-          title="Avg. APY"
-          value="11.4%"
-          subtitle="Weighted average"
-          change={{ value: "+1.2%", positive: true }}
+          title="Vault Types"
+          value="4"
+          subtitle="Delta-neutral, Leverage, Yield, Covered Call"
           icon={<FireIcon className="w-5 h-5 text-accent-400" />}
           accentColor="accent"
         />
@@ -242,7 +240,11 @@ export default function VaultsPage() {
                       >
                         {vault.riskLevel} Risk
                       </span>
-                      {vault.status === "Active" && (
+                      {vault.status === "Coming Soon" ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-dark-700/50 border border-dark-600/30 text-xs text-dark-400">
+                          Coming Soon
+                        </span>
+                      ) : (
                         <span className="inline-flex items-center space-x-1 text-xs text-green-400">
                           <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
                           <span>Active</span>
@@ -404,11 +406,14 @@ export default function VaultsPage() {
                     </div>
 
                     <button
-                      onClick={() => setSelectedVault(vault.id)}
-                      className="btn-primary w-full text-sm py-3"
+                      onClick={() => vault.status !== "Coming Soon" && setSelectedVault(vault.id)}
+                      disabled={vault.status === "Coming Soon"}
+                      className={`w-full text-sm py-3 ${vault.status === "Coming Soon" ? "btn-secondary opacity-60 cursor-not-allowed" : "btn-primary"}`}
                     >
-                      {isConnected ? "Manage Position" : "Connect & Deposit"}
-                      <ArrowRightIcon className="w-3.5 h-3.5 ml-2" />
+                      {vault.status === "Coming Soon"
+                        ? "Coming Soon"
+                        : isConnected ? "Manage Position" : "Connect & Deposit"}
+                      {vault.status !== "Coming Soon" && <ArrowRightIcon className="w-3.5 h-3.5 ml-2" />}
                     </button>
                   </div>
                 )}
