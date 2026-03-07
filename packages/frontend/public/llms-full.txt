@@ -198,4 +198,6 @@ The protocol is built with Cairo smart contracts on Starknet and leverages STARK
 - App (Mainnet): https://app.moonight.fun
 - App (Testnet): https://sepolia.moonight.fun
 - Testnet Faucet: https://sepolia.moonight.fun/faucet
-- Twitter/X: https://x.com/moonaborz
+- Twitter/X: https://x.com/0xmoonight
+- GitHub: https://github.com/kunal-drall/moonightv0
+- Email: kunal@moonight.fun

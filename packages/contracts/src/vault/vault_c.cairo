@@ -155,23 +155,17 @@ pub mod VaultC {
         }
 
         fn convert_to_shares(self: @ContractState, assets: u256) -> u256 {
-            let supply = self.erc20.total_supply();
-            let total = self.total_assets_cached.read();
-            if supply == 0 || total == 0 {
-                assets
-            } else {
-                assets * supply / total
-            }
+            // Virtual offset of 1 prevents first-depositor share inflation attack
+            let supply = self.erc20.total_supply() + 1;
+            let total = self.total_assets_cached.read() + 1;
+            assets * supply / total
         }
 
         fn convert_to_assets(self: @ContractState, shares: u256) -> u256 {
-            let supply = self.erc20.total_supply();
-            let total = self.total_assets_cached.read();
-            if supply == 0 {
-                shares
-            } else {
-                shares * total / supply
-            }
+            // Virtual offset of 1 prevents first-depositor share inflation attack
+            let supply = self.erc20.total_supply() + 1;
+            let total = self.total_assets_cached.read() + 1;
+            shares * total / supply
         }
 
         fn max_deposit(self: @ContractState, receiver: ContractAddress) -> u256 {
@@ -401,6 +395,9 @@ pub mod VaultC {
         }
 
         fn reallocate(ref self: ContractState) {
+            self._assert_not_reentered();
+            self.reentrancy_status.write('ENTERED');
+
             let caller = get_caller_address();
             assert(
                 caller == self.keeper.read() || caller == self.ownable.owner(),
@@ -409,6 +406,7 @@ pub mod VaultC {
 
             let count = self.adapter_count.read();
             if count == 0 {
+                self.reentrancy_status.write('NOT_ENTERED');
                 return;
             }
 
@@ -451,6 +449,8 @@ pub mod VaultC {
             self.emit(Reallocate {
                 timestamp: get_block_timestamp(),
             });
+
+            self.reentrancy_status.write('NOT_ENTERED');
         }
 
         fn get_allocation(self: @ContractState) -> (u256, u256, u256) {
@@ -505,10 +505,11 @@ pub mod VaultC {
         ) {
             let caller = get_caller_address();
 
-            // If caller != owner, check allowance
+            // If caller != owner, check and decrement allowance
             if caller != owner {
                 let allowance = self.erc20.allowance(owner, caller);
                 assert(allowance >= shares, 'Insufficient allowance');
+                self.erc20._approve(owner, caller, allowance - shares);
             }
 
             let balance = self.erc20.balance_of(owner);

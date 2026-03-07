@@ -163,8 +163,8 @@ pub mod StabilityPool {
             // Auto-claim pending interest before updating snapshot
             self._claim_interest_internal(caller);
 
-            let deposit = self.deposits.read(caller);
-            let new_deposit = if amount >= deposit { 0 } else { deposit - amount };
+            // Use compounded deposit for subtraction (not raw deposit)
+            let new_deposit = if amount >= compounded { 0 } else { compounded - amount };
             self.deposits.write(caller, new_deposit);
 
             // Update snapshots
@@ -231,6 +231,7 @@ pub mod StabilityPool {
             collateral_type: felt252,
             collateral_amount: u256,
         ) {
+            self._enter();
             let caller = get_caller_address();
             assert(caller == self.cdp_manager.read(), 'Only CDPManager');
 
@@ -265,6 +266,7 @@ pub mod StabilityPool {
             self.collateral_balances.write(collateral_type, current_col_bal + collateral_amount);
 
             self.emit(LiquidationAbsorbed { debt_amount, collateral_type, collateral_amount });
+            self._exit();
         }
 
         fn distribute_interest(ref self: ContractState, amount: u256) {

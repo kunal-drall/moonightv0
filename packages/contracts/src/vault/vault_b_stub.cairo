@@ -24,6 +24,8 @@ pub mod VaultB {
 
     const BPS: u256 = 10_000;
     const MAX_LOOPS: u8 = 5; // Max 5 borrow-redeposit loops (≈3x leverage at 66% LTV)
+    const NOT_ENTERED: felt252 = 'NOT_ENTERED';
+    const ENTERED: felt252 = 'ENTERED';
 
     #[storage]
     struct Storage {
@@ -53,6 +55,8 @@ pub mod VaultB {
         // Fee
         treasury: ContractAddress,
         performance_fee_bps: u256, // default 2000 = 20%
+        // Reentrancy guard
+        reentrancy_status: felt252,
     }
 
     #[event]
@@ -127,12 +131,15 @@ pub mod VaultB {
         self.vault_ltv_target.write(6600);      // 66% LTV per loop
         self.safety_buffer_bps.write(1500);     // 15% safety buffer
         self.performance_fee_bps.write(2000);   // 20% performance fee
+        self.reentrancy_status.write(NOT_ENTERED);
     }
 
     // =================== External (User) ===================
 
     #[external(v0)]
     fn deposit(ref self: ContractState, btc_amount: u256, target_leverage_bps: u256) {
+        self._assert_not_reentered();
+        self.reentrancy_status.write(ENTERED);
         assert(!self.paused.read(), 'Vault is paused');
         let caller = get_caller_address();
         assert(!self.user_active.read(caller), 'Position already active');
@@ -155,10 +162,13 @@ pub mod VaultB {
         self._execute_leverage(caller, btc_amount, target_leverage_bps);
 
         self.emit(Deposit { user: caller, btc_amount, target_leverage: target_leverage_bps });
+        self.reentrancy_status.write(NOT_ENTERED);
     }
 
     #[external(v0)]
     fn withdraw(ref self: ContractState) {
+        self._assert_not_reentered();
+        self.reentrancy_status.write(ENTERED);
         let caller = get_caller_address();
         assert(self.user_active.read(caller), 'No active position');
 
@@ -181,10 +191,13 @@ pub mod VaultB {
         self.user_active.write(caller, false);
 
         self.emit(Withdraw { user: caller, btc_returned: net_btc });
+        self.reentrancy_status.write(NOT_ENTERED);
     }
 
     #[external(v0)]
     fn adjust_leverage(ref self: ContractState, new_target_leverage_bps: u256) {
+        self._assert_not_reentered();
+        self.reentrancy_status.write(ENTERED);
         assert(!self.paused.read(), 'Vault is paused');
         let caller = get_caller_address();
         assert(self.user_active.read(caller), 'No active position');
@@ -202,6 +215,7 @@ pub mod VaultB {
             self.user_target_leverage.write(caller, new_target_leverage_bps);
             self._partial_deleverage(caller, new_target_leverage_bps);
         }
+        self.reentrancy_status.write(NOT_ENTERED);
     }
 
     // =================== External (Keeper / Protection) ===================
@@ -305,6 +319,10 @@ pub mod VaultB {
 
     #[generate_trait]
     impl InternalImpl of InternalTrait {
+        fn _assert_not_reentered(self: @ContractState) {
+            assert(self.reentrancy_status.read() != ENTERED, 'Reentrant call');
+        }
+
         /// Execute the leverage loop: deposit BTC → mint moonUSD → swap to BTC → repeat
         fn _execute_leverage(
             ref self: ContractState,

@@ -59,6 +59,8 @@ pub mod VaultA {
         vault_ltv_target: u256,    // target LTV in BPS (default 6000 = 60%)
         margin_utilization_cap: u256, // max margin utilization BPS (default 7000 = 70%)
         paused: bool,
+        // Collateral
+        wbtc_token: ContractAddress,
         // Deposit queue for batching
         pending_deposits: u256,
         // Fee
@@ -150,6 +152,11 @@ pub mod VaultA {
             assert(btc_amount > 0, 'Zero deposit');
 
             let caller = get_caller_address();
+            let this = get_contract_address();
+
+            // 0. Transfer BTC from user to vault
+            let wbtc = IERC20Dispatcher { contract_address: self.wbtc_token.read() };
+            wbtc.transfer_from(caller, this, btc_amount);
 
             // 1. Get BTC price to calculate deposit value
             let oracle = IPriceOracleDispatcher {
@@ -471,6 +478,12 @@ pub mod VaultA {
         assert(caller == self.keeper.read(), 'Only keeper');
         self.long_notional.write(long_notional);
         self.short_notional.write(short_notional);
+    }
+
+    #[external(v0)]
+    fn set_wbtc_token(ref self: ContractState, wbtc: ContractAddress) {
+        self.ownable.assert_only_owner();
+        self.wbtc_token.write(wbtc);
     }
 
     #[external(v0)]

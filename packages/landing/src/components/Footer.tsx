@@ -29,9 +29,9 @@ const footerLinks = {
 };
 
 const socialLinks = [
-  { label: "Twitter", href: "https://twitter.com/moonightprotocol" },
+  { label: "Twitter", href: "https://x.com/0xmoonight" },
   { label: "Telegram", href: "https://t.me/moonightprotocol" },
-  { label: "GitHub", href: "https://github.com/moonightprotocol" },
+  { label: "GitHub", href: "https://github.com/kunal-drall/moonightv0" },
   { label: "Discord", href: "https://discord.gg/cZa7YpyQ" },
 ];
 

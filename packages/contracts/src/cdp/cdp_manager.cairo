@@ -299,6 +299,8 @@ pub mod CDPManager {
         }
 
         fn deposit_collateral(ref self: ContractState, position_id: u256, amount: u256) {
+            self._assert_not_reentered();
+            self.reentrancy_status.write('ENTERED');
             self._assert_position_owner(position_id);
             assert(self.position_active.read(position_id), 'Position not active');
 
@@ -312,6 +314,7 @@ pub mod CDPManager {
             self.position_collateral_amount.write(position_id, current + amount);
 
             self.emit(CollateralDeposited { position_id, amount });
+            self.reentrancy_status.write('NOT_ENTERED');
         }
 
         fn withdraw_collateral(ref self: ContractState, position_id: u256, amount: u256) {
@@ -344,6 +347,8 @@ pub mod CDPManager {
         }
 
         fn mint_more(ref self: ContractState, position_id: u256, amount: u256) {
+            self._assert_not_reentered();
+            self.reentrancy_status.write('ENTERED');
             self._assert_position_owner(position_id);
             assert(self.position_active.read(position_id), 'Position not active');
             assert(!self.paused.read(), 'Protocol is paused');
@@ -391,9 +396,12 @@ pub mod CDPManager {
             );
 
             self.emit(DebtMinted { position_id, amount });
+            self.reentrancy_status.write('NOT_ENTERED');
         }
 
         fn repay(ref self: ContractState, position_id: u256, amount: u256) {
+            self._assert_not_reentered();
+            self.reentrancy_status.write('ENTERED');
             assert(self.position_active.read(position_id), 'Position not active');
             self._accrue_interest(position_id);
 
@@ -416,9 +424,12 @@ pub mod CDPManager {
             );
 
             self.emit(DebtRepaid { position_id, amount: repay_amount });
+            self.reentrancy_status.write('NOT_ENTERED');
         }
 
         fn set_rate(ref self: ContractState, position_id: u256, new_rate: u256) {
+            self._assert_not_reentered();
+            self.reentrancy_status.write('ENTERED');
             self._assert_position_owner(position_id);
             assert(self.position_active.read(position_id), 'Position not active');
 
@@ -451,6 +462,7 @@ pub mod CDPManager {
             redemption_mgr.re_insert(position_id, new_rate);
 
             self.emit(RateChanged { position_id, old_rate, new_rate });
+            self.reentrancy_status.write('NOT_ENTERED');
         }
 
         fn liquidate(ref self: ContractState, position_id: u256) {

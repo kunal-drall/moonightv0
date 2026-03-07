@@ -263,7 +263,7 @@ fn test_my_feature() {
 
 **Do NOT open a public issue for security vulnerabilities.**
 
-Email security reports to: **security@moonight.fun**
+Email security reports to: **kunal@moonight.fun**
 
 Include:
 - Description of the vulnerability

@@ -22,6 +22,8 @@ pub mod VaultD {
     impl OwnableInternalImpl = OwnableComponent::InternalImpl<ContractState>;
 
     const BPS: u256 = 10_000;
+    const NOT_ENTERED: felt252 = 'NOT_ENTERED';
+    const ENTERED: felt252 = 'ENTERED';
 
     #[storage]
     struct Storage {
@@ -62,6 +64,11 @@ pub mod VaultD {
         // Fee
         treasury: ContractAddress,
         premium_fee_bps: u256, // default 500 = 5%
+        // Reentrancy guard
+        reentrancy_status: felt252,
+        // Per-epoch snapshot of total BTC and YT supply for accurate premium calculation
+        epoch_total_btc: Map<u256, u256>,
+        epoch_total_yt: Map<u256, u256>,
     }
 
     #[event]
@@ -145,6 +152,7 @@ pub mod VaultD {
         self.premium_payout_token.write('usdc');
         self.current_epoch.write(0);
         self.premium_fee_bps.write(500);             // 5% premium fee
+        self.reentrancy_status.write(NOT_ENTERED);
     }
 
     // =================== External (User) ===================
@@ -152,6 +160,8 @@ pub mod VaultD {
     /// Deposit BTC and receive PT (principal) + YT (yield) tokens
     #[external(v0)]
     fn deposit(ref self: ContractState, btc_amount: u256) {
+        assert(self.reentrancy_status.read() != ENTERED, 'Reentrant call');
+        self.reentrancy_status.write(ENTERED);
         assert(!self.paused.read(), 'Vault is paused');
         let caller = get_caller_address();
         assert(btc_amount >= self.min_deposit.read(), 'Below min deposit');
@@ -183,11 +193,14 @@ pub mod VaultD {
         self.total_yt_supply.write(self.total_yt_supply.read() + yt_amount);
 
         self.emit(Deposit { user: caller, btc_amount, pt_minted: pt_amount, yt_minted: yt_amount, epoch });
+        self.reentrancy_status.write(NOT_ENTERED);
     }
 
     /// Withdraw BTC by burning PT tokens (only after current epoch settles)
     #[external(v0)]
     fn withdraw(ref self: ContractState, pt_amount: u256) {
+        assert(self.reentrancy_status.read() != ENTERED, 'Reentrant call');
+        self.reentrancy_status.write(ENTERED);
         let caller = get_caller_address();
         assert(self.user_active.read(caller), 'No active position');
         let user_pt = self.user_pt_balance.read(caller);
@@ -231,11 +244,14 @@ pub mod VaultD {
         }
 
         self.emit(Withdraw { user: caller, btc_returned: btc_to_return, pt_burned: pt_amount });
+        self.reentrancy_status.write(NOT_ENTERED);
     }
 
     /// Claim accumulated premium yield for all settled epochs since last claim
     #[external(v0)]
     fn claim_premium(ref self: ContractState) {
+        assert(self.reentrancy_status.read() != ENTERED, 'Reentrant call');
+        self.reentrancy_status.write(ENTERED);
         let caller = get_caller_address();
         let yt_balance = self.user_yt_balance.read(caller);
         assert(yt_balance > 0, 'No YT balance');
@@ -261,11 +277,17 @@ pub mod VaultD {
             }
 
             let premium_rate = self.epoch_premium_rate.read(epoch);
-            let total_btc = self.total_btc_deposited.read();
+            // Use epoch snapshots for accurate pro-rata (not current totals)
+            let epoch_btc = self.epoch_total_btc.read(epoch);
+            let epoch_yt = self.epoch_total_yt.read(epoch);
+            if epoch_yt == 0 {
+                epoch = epoch + 1;
+                continue;
+            }
 
-            // User's share of premium: (yt_balance / total_yt_supply) * (total_btc * premium_rate / BPS)
-            let epoch_total_premium = (total_btc * premium_rate) / BPS;
-            let user_share = (epoch_total_premium * yt_balance) / total_supply;
+            // User's share of premium: (yt_balance / epoch_yt_supply) * (epoch_btc * premium_rate / BPS)
+            let epoch_total_premium = (epoch_btc * premium_rate) / BPS;
+            let user_share = (epoch_total_premium * yt_balance) / epoch_yt;
             total_premium = total_premium + user_share;
             epochs_claimed = epochs_claimed + 1;
             epoch = epoch + 1;
@@ -284,6 +306,7 @@ pub mod VaultD {
         token.transfer(caller, total_premium);
 
         self.emit(PremiumClaimed { user: caller, amount: total_premium, epochs_count: epochs_claimed });
+        self.reentrancy_status.write(NOT_ENTERED);
     }
 
     /// Transfer YT tokens to another address (trade yield separately from principal)
@@ -363,6 +386,10 @@ pub mod VaultD {
         self.epoch_start.write(get_block_timestamp());
         self.epoch_strike_price.write(new_epoch, strike_price);
         self.epoch_premium_rate.write(new_epoch, premium_rate_bps);
+
+        // Snapshot current totals for accurate premium distribution
+        self.epoch_total_btc.write(new_epoch, self.total_btc_deposited.read());
+        self.epoch_total_yt.write(new_epoch, self.total_yt_supply.read());
 
         self.emit(EpochStarted { epoch: new_epoch, strike_price, premium_rate_bps });
     }

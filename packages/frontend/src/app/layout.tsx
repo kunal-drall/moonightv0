@@ -65,7 +65,7 @@ export const metadata: Metadata = {
     description:
       "Mint moonUSD against your Bitcoin on Starknet. Delta-neutral vaults, yield strategies, DeFi payment cards.",
     images: ["/og-image.png"],
-    creator: "@moonaborz",
+    creator: "@0xmoonight",
   },
   robots: {
     index: true,

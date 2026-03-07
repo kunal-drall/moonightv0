@@ -38,7 +38,9 @@ Moonight Protocol is a decentralized finance (DeFi) protocol built on Starknet t
 - Website: https://moonight.fun
 - App (Mainnet): https://app.moonight.fun
 - App (Testnet): https://sepolia.moonight.fun
-- Twitter: https://x.com/moonaborz
+- Twitter: https://x.com/0xmoonight
+- GitHub: https://github.com/kunal-drall/moonightv0
+- Email: kunal@moonight.fun
 
 ## Key Terms
 

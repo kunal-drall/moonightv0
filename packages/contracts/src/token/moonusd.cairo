@@ -185,6 +185,7 @@ pub mod MoonUSD {
 
         let caller = get_caller_address();
         let fee_bps = self.flash_mint_fee_bps.read();
+        assert(fee_bps > 0, 'Flash fee not set');
         let fee = amount * fee_bps / 10000;
 
         // 1. Mint to borrower
@@ -229,6 +230,8 @@ pub mod MoonUSD {
     #[external(v0)]
     fn set_treasury(ref self: ContractState, treasury: ContractAddress) {
         self.ownable.assert_only_owner();
+        let zero: ContractAddress = starknet::contract_address_const::<0>();
+        assert(treasury != zero, 'Treasury cannot be zero');
         self.treasury.write(treasury);
     }
 

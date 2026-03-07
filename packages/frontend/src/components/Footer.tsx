@@ -2,9 +2,9 @@
 
 const socialLinks = [
   { label: "Docs", href: "https://docs.moonight.fun" },
-  { label: "Twitter", href: "https://twitter.com/moonightprotocol" },
+  { label: "Twitter", href: "https://x.com/0xmoonight" },
   { label: "Discord", href: "https://discord.gg/cZa7YpyQ" },
-  { label: "GitHub", href: "https://github.com/moonightprotocol" },
+  { label: "GitHub", href: "https://github.com/kunal-drall/moonightv0" },
   { label: "Telegram", href: "https://t.me/moonightprotocol" },
 ];
 

@@ -47,13 +47,13 @@ It also applies when an individual is officially representing the community in p
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the project maintainers at:
 
-**conduct@moonight.fun**
+**kunal@moonight.fun**
 
 All complaints will be reviewed and investigated promptly and fairly. The project team is obligated to maintain confidentiality with regard to the reporter of an incident.
 
 ### Security Vulnerabilities
 
-Security vulnerabilities must **never** be disclosed publicly. Report them to **security@moonight.fun** as outlined in our [Contributing Guide](CONTRIBUTING.md#security).
+Security vulnerabilities must **never** be disclosed publicly. Report them to **kunal@moonight.fun** as outlined in our [Contributing Guide](CONTRIBUTING.md#security).
 
 ### Enforcement Actions
 
