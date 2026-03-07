@@ -20,6 +20,7 @@ const envSchema = z.object({
   REDEMPTION_MANAGER_ADDRESS: z.string().default("0x0"),
   VAULT_A_ADDRESS: z.string().default("0x0"),
   VAULT_C_ADDRESS: z.string().default("0x0"),
+  SP_ADAPTER_ADDRESS: z.string().default("0x0"),
   PROTOCOL_CONFIG_ADDRESS: z.string().default("0x0"),
 
   // Rain.xyz
