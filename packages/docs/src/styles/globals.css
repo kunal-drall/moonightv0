@@ -1,0 +1,202 @@
+/* Moonight Docs - Midnight Observatory Theme */
+
+:root {
+  --moon-surface-0: #0a0c10;
+  --moon-surface-1: #12151c;
+  --moon-surface-2: #1a1e28;
+  --moon-border: #252a36;
+  --moon-accent: #d4940a;
+  --moon-accent-dim: #6b4d0a;
+  --moon-text-0: #e4e6ec;
+  --moon-text-1: #8b90a0;
+  --moon-text-2: #585e6f;
+}
+
+/* Force dark backgrounds */
+html[class~="dark"] {
+  --shiki-color-background: var(--moon-surface-1) !important;
+}
+
+/* Page background */
+html.dark body {
+  background-color: var(--moon-surface-0);
+  background-image: radial-gradient(
+    ellipse at 50% 0%,
+    rgba(212, 148, 10, 0.025) 0%,
+    transparent 50%
+  );
+  background-attachment: fixed;
+}
+
+/* Navbar */
+html.dark .nextra-nav-container nav {
+  background-color: rgba(10, 12, 16, 0.85) !important;
+  backdrop-filter: blur(12px);
+  border-bottom-color: var(--moon-border) !important;
+}
+
+/* Sidebar */
+html.dark .nextra-sidebar-container {
+  background-color: var(--moon-surface-0) !important;
+  border-right-color: var(--moon-border) !important;
+}
+
+html.dark .nextra-sidebar-container li a {
+  color: var(--moon-text-1);
+}
+
+html.dark .nextra-sidebar-container li a:hover {
+  color: var(--moon-text-0);
+}
+
+html.dark .nextra-sidebar-container li a.active {
+  color: var(--moon-accent) !important;
+}
+
+/* TOC (table of contents) */
+html.dark .nextra-toc a {
+  color: var(--moon-text-2);
+}
+
+html.dark .nextra-toc a:hover {
+  color: var(--moon-text-0);
+}
+
+/* Code blocks */
+html.dark pre {
+  background-color: var(--moon-surface-1) !important;
+  border: 1px solid var(--moon-border) !important;
+  border-radius: 0 !important;
+}
+
+html.dark code {
+  font-family: "IBM Plex Mono", "Fira Code", ui-monospace, monospace;
+  font-size: 0.875em;
+}
+
+html.dark :not(pre) > code {
+  background-color: var(--moon-surface-2) !important;
+  border: 1px solid var(--moon-border) !important;
+  color: var(--moon-accent) !important;
+  border-radius: 0 !important;
+  padding: 0.15em 0.35em;
+}
+
+/* Tables */
+html.dark table {
+  border-color: var(--moon-border) !important;
+}
+
+html.dark th {
+  background-color: var(--moon-surface-1) !important;
+  border-color: var(--moon-border) !important;
+  color: var(--moon-text-1) !important;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+}
+
+html.dark td {
+  border-color: var(--moon-border) !important;
+}
+
+html.dark tr:hover td {
+  background-color: var(--moon-surface-1) !important;
+}
+
+/* Links */
+html.dark a {
+  color: var(--moon-accent);
+}
+
+html.dark a:hover {
+  color: #e8a820;
+}
+
+/* Headers */
+html.dark h1,
+html.dark h2,
+html.dark h3,
+html.dark h4 {
+  color: var(--moon-text-0);
+  letter-spacing: -0.01em;
+}
+
+html.dark h1 {
+  font-weight: 700;
+}
+
+/* Blockquotes / callouts */
+html.dark .nextra-callout {
+  background-color: var(--moon-surface-1) !important;
+  border-color: var(--moon-border) !important;
+}
+
+/* Search */
+html.dark .nextra-search input {
+  background-color: var(--moon-surface-1) !important;
+  border-color: var(--moon-border) !important;
+  color: var(--moon-text-0) !important;
+}
+
+html.dark .nextra-search input::placeholder {
+  color: var(--moon-text-2) !important;
+}
+
+/* Banner */
+html.dark .nextra-banner {
+  background-color: var(--moon-accent-dim) !important;
+  color: var(--moon-text-0) !important;
+}
+
+html.dark .nextra-banner a {
+  color: var(--moon-text-0) !important;
+}
+
+/* Footer */
+html.dark footer {
+  background-color: var(--moon-surface-0) !important;
+  border-top-color: var(--moon-border) !important;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--moon-surface-0);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--moon-border);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--moon-text-2);
+}
+
+/* Cards in content */
+html.dark .nextra-cards .nextra-card {
+  background-color: var(--moon-surface-1) !important;
+  border-color: var(--moon-border) !important;
+  transition: border-color 0.2s;
+}
+
+html.dark .nextra-cards .nextra-card:hover {
+  border-color: var(--moon-accent) !important;
+}
+
+/* Breadcrumbs */
+html.dark .nextra-breadcrumb {
+  color: var(--moon-text-2) !important;
+}
+
+/* Selection */
+::selection {
+  background-color: rgba(212, 148, 10, 0.25);
+  color: var(--moon-text-0);
+}
