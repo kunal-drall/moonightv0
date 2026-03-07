@@ -7,21 +7,70 @@ import Footer from "@/components/Footer";
 
 const inter = Inter({ subsets: ["latin"] });
 
+const siteUrl = process.env.NEXT_PUBLIC_STARKNET_NETWORK === "mainnet"
+  ? "https://app.moonight.fun"
+  : "https://sepolia.moonight.fun";
+
 export const metadata: Metadata = {
-  title: "Moonight Protocol | BTC-Backed Stablecoin on Starknet",
+  title: {
+    default: "Moonight Protocol | BTC-Backed Stablecoin on Starknet",
+    template: "%s | Moonight Protocol",
+  },
   description:
-    "Mint moonUSD, the BTC-backed stablecoin on Starknet. Access delta-neutral vaults, yield strategies, and DeFi-native payment cards.",
+    "Moonight Protocol is a BTC-backed stablecoin (moonUSD) on Starknet. Mint moonUSD against your Bitcoin, access delta-neutral vaults, yield strategies, and DeFi-native payment cards. Built with Cairo smart contracts and STARK proofs.",
   keywords: [
-    "Moonight",
-    "moonUSD",
-    "stablecoin",
-    "Bitcoin",
-    "BTC",
-    "Starknet",
-    "DeFi",
-    "vault",
-    "yield",
+    "Moonight", "Moonight Protocol", "moonUSD", "stablecoin", "Bitcoin",
+    "BTC", "Starknet", "DeFi", "vault", "yield", "CDP", "collateral",
+    "delta-neutral", "payment card", "Cairo", "STARK proofs", "BTC-backed",
+    "strkBTC", "privacy", "zkKYC", "S-two",
   ],
+  authors: [{ name: "Moonight Protocol" }],
+  creator: "Moonight Protocol",
+  publisher: "Moonight Protocol",
+  metadataBase: new URL(siteUrl),
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: siteUrl,
+    siteName: "Moonight Protocol",
+    title: "Moonight Protocol | BTC-Backed Stablecoin on Starknet",
+    description:
+      "Mint moonUSD against your Bitcoin on Starknet. Access delta-neutral vaults, yield strategies, and DeFi-native payments.",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Moonight Protocol - BTC-Backed Stablecoin on Starknet",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Moonight Protocol | BTC-Backed Stablecoin on Starknet",
+    description:
+      "Mint moonUSD against your Bitcoin on Starknet. Delta-neutral vaults, yield strategies, DeFi payment cards.",
+    images: ["/og-image.png"],
+    creator: "@moonaborz",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large" as const,
+      "max-snippet": -1,
+    },
+  },
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({
@@ -29,8 +78,33 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    name: "Moonight Protocol",
+    description: "BTC-backed stablecoin protocol on Starknet. Mint moonUSD against Bitcoin collateral with delta-neutral vaults, yield strategies, and DeFi payment cards.",
+    url: siteUrl,
+    applicationCategory: "FinanceApplication",
+    operatingSystem: "Web",
+    offers: {
+      "@type": "Offer",
+      category: "DeFi Protocol",
+    },
+    creator: {
+      "@type": "Organization",
+      name: "Moonight Protocol",
+      url: "https://moonight.fun",
+    },
+  };
+
   return (
     <html lang="en" className="dark">
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      </head>
       <body
         className={`${inter.className} min-h-screen bg-dark-900 text-dark-50`}
       >

@@ -1,0 +1,201 @@
+# Moonight Protocol — Full Technical Documentation
+
+> BTC-backed stablecoin protocol on Starknet. Mint moonUSD against Bitcoin collateral with delta-neutral vaults, yield strategies, and DeFi-native payment cards.
+
+## Protocol Overview
+
+Moonight Protocol is a decentralized finance (DeFi) protocol built on Starknet that enables users to:
+
+1. **Mint moonUSD**: Deposit BTC (as WBTC) as collateral and mint the moonUSD stablecoin at up to 80% loan-to-value ratio
+2. **Earn yield**: Deposit BTC into delta-neutral vaults for passive returns (4-30% APY target)
+3. **Spend crypto**: Use moonUSD via DeFi-native payment cards for real-world purchases
+4. **Maintain privacy**: Optional privacy mode powered by S-two zero-knowledge proofs
+
+The protocol is built with Cairo smart contracts on Starknet and leverages STARK proofs for scalable, verifiable computation. All contracts are open-source.
+
+---
+
+## Smart Contract Architecture
+
+### CDPManager (Collateralized Debt Position Manager)
+- **Purpose**: Core protocol logic — opens/closes positions, manages collateral, accrues interest
+- **Key Functions**:
+  - `open_position(collateral_type, collateral_amount, mint_amount, interest_rate)` → position_id
+  - `close_position(position_id)` — repays all debt and returns collateral
+  - `deposit_collateral(position_id, amount)` — adds more collateral to a position
+  - `withdraw_collateral(position_id, amount)` — removes collateral (must maintain health factor)
+  - `mint_more(position_id, amount)` — borrows more moonUSD against existing collateral
+  - `repay(position_id, amount)` — repays debt
+  - `set_rate(position_id, new_rate)` — changes the interest rate (user-set)
+  - `get_position(position_id)` → PositionData struct
+  - `get_health_factor(position_id)` → u256 (18-decimal scaled, liquidation at <= 1e18)
+  - `get_current_debt(position_id)` → u256 (includes accrued interest)
+  - `get_market_average_rate()` → u256 (weighted average interest rate in bps)
+  - `get_borrow_fee(mint_amount)` → u256 (one-time fee on minting)
+  - `get_total_debt()` → u256 (total protocol debt)
+  - `get_active_positions()` → u256 (count of active CDPs)
+  - `liquidate(position_id)` — liquidates undercollateralized positions
+  - `add_collateral_type(key, token, ltv_max, liq_penalty)` — owner-only
+
+### PositionData Struct
+```
+{
+  collateral_type: felt252,     // e.g., "WBTC"
+  collateral_amount: u256,      // in token decimals (8 for WBTC)
+  debt: u256,                   // in moonUSD (18 decimals)
+  interest_rate: u256,          // in basis points (100 = 1%)
+  last_update: u64,             // timestamp of last interest accrual
+  created_at: u64               // timestamp of position creation
+}
+```
+
+### MoonUSD (ERC-20 Stablecoin)
+- **Purpose**: The protocol's stablecoin token, pegged to $1 USD
+- **Decimals**: 18
+- **Access Control**: Only authorized minters (CDPManager) can mint, only authorized burners can burn
+- **Standard ERC-20 functions**: transfer, approve, transferFrom, balanceOf, totalSupply, allowance
+
+### PositionNFT (ERC-721)
+- **Purpose**: Represents ownership of a CDP — positions are transferable via NFT transfer
+- **Minted when**: A new position is opened via CDPManager
+- **Burned when**: A position is closed
+
+### PriceOracle
+- **Purpose**: Provides BTC/USD price data to the protocol
+- **Source**: Pragma Oracle (decentralized oracle network on Starknet)
+- **Functions**:
+  - `get_price(collateral_type)` → (price: u256, decimals: u8)
+  - `get_price_twap(collateral_type)` → (price: u256, decimals: u8)
+- **Staleness check**: Prices older than 3600 seconds are rejected
+
+### StabilityPool
+- **Purpose**: Depositors provide moonUSD as a liquidation buffer; in return they receive discounted collateral from liquidated positions
+- **Accounting**: Liquity-style O(1) product/sum tracking (no iteration over depositors)
+- **Functions**:
+  - `deposit(amount)` — deposit moonUSD into the pool
+  - `withdraw(amount)` — withdraw moonUSD (compounded balance)
+  - `claim_collateral_gains()` — claim accumulated collateral from liquidations
+  - `absorb_liquidation(debt_amount, collateral_type, collateral_amount)` — called by CDPManager during liquidation
+
+### RedemptionManager
+- **Purpose**: Manages the sorted queue of positions for moonUSD-to-BTC redemptions
+- **Mechanism**: Positions are sorted by interest rate; lowest-rate positions are redeemed first (incentivizing competitive rates)
+- **Functions**:
+  - `insert(position_id, interest_rate)` — add position to sorted queue
+  - `remove(position_id)` — remove position from queue
+  - `re_insert(position_id, new_rate)` — update position's queue placement after rate change
+
+### ProtocolConfig
+- **Purpose**: Global protocol parameters
+- **Parameters**: Base fee rate, minimum debt (200 moonUSD), fee caps, emergency shutdown toggle
+
+---
+
+## Collateral Tiers
+
+| Tier | Asset | Max LTV | Liq. Penalty | Status |
+|------|-------|---------|--------------|--------|
+| 1 | strkBTC | 90% | 5% | Coming Soon |
+| 2 | sBTC | 87% | 7.5% | Coming Soon |
+| 3 | WBTC | 80% | 10% | Live (Sepolia) |
+
+**LTV** = Loan-to-Value. An 80% LTV means you can borrow up to $80 of moonUSD for every $100 of BTC collateral.
+
+**Liquidation Penalty** = Additional collateral seized during liquidation to incentivize Stability Pool depositors.
+
+---
+
+## Interest Rate Mechanism
+
+- Users **choose their own interest rate** when opening a position (minimum 0.5%, maximum 500%)
+- Lower rates = redeemed first (your position is the first to be unwound if moonUSD holders redeem)
+- Higher rates = more expensive but safer from redemption
+- The **market average rate** emerges naturally from user choices
+- Interest accrues continuously based on block timestamps
+
+---
+
+## Liquidation Mechanism
+
+1. When a position's health factor drops to or below 1.0, anyone can call `liquidate(position_id)`
+2. The Stability Pool absorbs the debt (burns moonUSD from pool)
+3. Collateral is transferred to the Stability Pool (depositors receive it pro-rata)
+4. A liquidation penalty is sent to the protocol treasury
+5. The position's NFT is burned
+
+**Health Factor** = (collateral_value * ltv_max) / debt. Collateral value = amount * BTC_price / 10^decimals.
+
+---
+
+## Delta-Neutral Vaults
+
+### Vault A (Conservative)
+- **Strategy**: BTC basis trade — long spot BTC, short perpetual futures
+- **Target APY**: 4-8%
+- **Risk**: Low (market-neutral)
+- **Status**: Coming Soon
+
+### Vault C (Aggressive)
+- **Strategy**: BTC options writing + derivatives strategies
+- **Target APY**: 15-30%
+- **Risk**: Higher (directional exposure possible)
+- **Status**: Coming Soon
+
+---
+
+## Privacy Features (S-two Integration)
+
+- **Privacy Mode**: Users can enable enhanced privacy for transactions
+- **Technology**: S-two zero-knowledge proofs on Starknet
+- **zkKYC**: Compliance verification without revealing personal data
+- **Shielded Transfers**: Private moonUSD transfers (planned)
+- **Status**: UI toggle available, on-chain verifier planned
+
+---
+
+## Network Deployments
+
+### Starknet Sepolia (Testnet) — Live
+- MoonUSD: `0x4f939a71809aee6691bd05bce8c3dec1faf915633a70838a40f4f63ada6e484`
+- CDPManager: `0x300a5714cc1bafe5e13297654739cc395703beb15701be71ffb9bf6cdc1a982`
+- PositionNFT: `0x2750ea202b2e14b4bf6d6faeaf58e0818295fa0c77d804b27c1e0c0429d01e1`
+- PriceOracle: `0x381e474889554290793fde095f133a4f6afdf7e128d0ccb5af7b855967a918a`
+- StabilityPool: `0x5622000f5e62e1a09fe586b5d41c2c1c2b6cd0701eae9ed85118658ff67e3d4`
+- RedemptionManager: `0x78e7d3ce5f606c66db587a4d38ce808e60973da2a1b61276dfd5bf89f149ffb`
+- ProtocolConfig: `0xb49bd862ff59f5a2c7ef01a23034b346dce65dbc7efa041dfbab895b3a3176`
+- MockWBTC: `0x03fbaf723f1e18d9623fd056d36d2016c1cb3b1b1d21f7b15d69ceed9350c169`
+
+### Starknet Mainnet — Planned
+
+---
+
+## User Flows
+
+### Minting moonUSD
+1. Connect Starknet wallet (Argent, Braavos)
+2. Acquire WBTC (via testnet faucet on Sepolia)
+3. Go to /mint, enter collateral amount and desired moonUSD
+4. Choose interest rate (higher = safer from redemption)
+5. Approve WBTC spend + open position (multicall transaction)
+6. Receive moonUSD in wallet + PositionNFT
+
+### Managing Positions
+- Add/withdraw collateral to adjust health factor
+- Mint more moonUSD or repay existing debt
+- Change interest rate
+- Close position (repays all debt, returns collateral)
+
+### Stability Pool
+- Deposit moonUSD to earn liquidation rewards
+- Receive discounted BTC collateral from liquidated positions
+- Earn interest yield distributed by CDPManager
+
+---
+
+## Links
+
+- Website: https://moonight.fun
+- App (Mainnet): https://app.moonight.fun
+- App (Testnet): https://sepolia.moonight.fun
+- Testnet Faucet: https://sepolia.moonight.fun/faucet
+- Twitter/X: https://x.com/moonaborz

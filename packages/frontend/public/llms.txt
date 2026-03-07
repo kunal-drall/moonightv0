@@ -1,0 +1,67 @@
+# Moonight Protocol
+
+> BTC-backed stablecoin protocol on Starknet. Mint moonUSD against Bitcoin collateral with delta-neutral vaults, yield strategies, and DeFi-native payment cards.
+
+## Overview
+
+Moonight Protocol is a decentralized finance (DeFi) protocol built on Starknet that enables users to mint moonUSD, a stablecoin backed by Bitcoin collateral (WBTC). The protocol uses Cairo smart contracts with STARK proofs for verifiable computation and offers privacy features powered by S-two technology.
+
+## Core Products
+
+### moonUSD Stablecoin
+- BTC-backed stablecoin minted via collateralized debt positions (CDPs)
+- Over-collateralized: minimum 125% collateral ratio (80% LTV)
+- User-set interest rates with market-driven equilibrium
+- Redeemable for underlying BTC collateral at face value
+
+### Delta-Neutral Vaults
+- **Vault A (Conservative)**: Low-risk BTC yield via basis trade strategies. Target 4-8% APY.
+- **Vault C (Aggressive)**: Higher-risk BTC yield via options and derivatives. Target 15-30% APY.
+- Auto-compounding with Starknet-native execution.
+
+### DeFi Payment Card
+- Spend moonUSD at point-of-sale via virtual/physical debit cards
+- Real-time settlement from on-chain balance
+- Integrated with Starknet for low-cost transactions
+
+### Privacy Mode
+- Enhanced transaction privacy powered by S-two zero-knowledge proofs
+- Optional privacy shielding for transfers and vault operations
+- zkKYC compliance without revealing personal data
+
+## Technical Architecture
+
+### Smart Contracts (Cairo 2.9.2 on Starknet)
+- **CDPManager**: Opens/closes collateralized debt positions, manages collateral, accrues interest
+- **MoonUSD**: ERC-20 stablecoin token with mint/burn access control
+- **PositionNFT**: ERC-721 representing CDP ownership (transferable positions)
+- **PriceOracle**: Pragma-based BTC/USD price feed with TWAP and staleness checks
+- **StabilityPool**: Liquity-style liquidation absorption with O(1) accounting
+- **RedemptionManager**: Sorted trove queue for moonUSD-to-BTC redemptions
+- **ProtocolConfig**: Global parameters (fees, ratios, caps)
+
+### Collateral Tiers
+- **Tier 1 (strkBTC)**: 90% max LTV, 5% liquidation penalty — coming soon
+- **Tier 2 (sBTC)**: 87% max LTV, 7.5% penalty — coming soon
+- **Tier 3 (WBTC)**: 80% max LTV, 10% penalty — live on Sepolia
+
+### Network
+- **Testnet**: Starknet Sepolia (live, functional)
+- **Mainnet**: Starknet mainnet (planned)
+
+## Links
+
+- Website: https://moonight.fun
+- App (Mainnet): https://app.moonight.fun
+- App (Testnet): https://sepolia.moonight.fun
+- Twitter: https://x.com/moonaborz
+
+## Key Terms
+
+- **moonUSD**: The protocol's native stablecoin, pegged to $1 USD
+- **CDP**: Collateralized Debt Position — a smart contract vault where users lock BTC to mint moonUSD
+- **LTV**: Loan-to-Value ratio — maximum borrowing power relative to collateral value
+- **Health Factor**: Ratio indicating position safety; liquidation occurs when HF <= 1.0
+- **Stability Pool**: Pool of moonUSD depositors who absorb liquidated debt in exchange for discounted collateral
+- **STARK proofs**: Zero-knowledge proofs used by Starknet for scalable, verifiable computation
+- **S-two**: Privacy layer providing shielded transactions and zkKYC on Starknet
