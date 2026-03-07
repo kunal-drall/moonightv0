@@ -96,6 +96,8 @@ pub mod RedemptionManager {
         }
 
         fn insert(ref self: ContractState, position_id: u256, interest_rate: u256) {
+            let caller = get_caller_address();
+            assert(caller == self.cdp_manager.read(), 'Only CDPManager');
             self.sorted_rate.write(position_id, interest_rate);
             let size = self.sorted_size.read();
 
@@ -143,6 +145,8 @@ pub mod RedemptionManager {
         }
 
         fn remove(ref self: ContractState, position_id: u256) {
+            let caller = get_caller_address();
+            assert(caller == self.cdp_manager.read(), 'Only CDPManager');
             let prev = self.sorted_prev.read(position_id);
             let next = self.sorted_next.read(position_id);
 
@@ -169,6 +173,9 @@ pub mod RedemptionManager {
         }
 
         fn re_insert(ref self: ContractState, position_id: u256, new_rate: u256) {
+            let caller = get_caller_address();
+            assert(caller == self.cdp_manager.read(), 'Only CDPManager');
+            // Internal calls preserve caller context in Starknet
             self.remove(position_id);
             self.insert(position_id, new_rate);
         }

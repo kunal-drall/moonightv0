@@ -186,6 +186,8 @@ pub mod StabilityPool {
         }
 
         fn distribute_interest(ref self: ContractState, amount: u256) {
+            let caller = get_caller_address();
+            assert(caller == self.cdp_manager.read(), 'Only CDPManager');
             let current = self.pending_interest_yield.read();
             self.pending_interest_yield.write(current + amount);
         }

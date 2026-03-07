@@ -465,11 +465,22 @@ pub mod CDPManager {
             let sp = IStabilityPoolDispatcher { contract_address: self.stability_pool.read() };
             let sp_balance = sp.get_total_deposits();
 
-            if sp_balance >= debt {
-                // SP absorbs full liquidation
-                sp.absorb_liquidation(debt, collateral_type, collateral_for_sp);
+            assert(sp_balance >= debt, 'SP insufficient for liquidation');
+
+            // Transfer collateral to Stability Pool
+            let collateral_token_addr = self.collateral_token.read(collateral_type);
+            let collateral_token = IERC20Dispatcher { contract_address: collateral_token_addr };
+            let sp_address = self.stability_pool.read();
+            collateral_token.transfer(sp_address, collateral_for_sp);
+
+            // Send penalty to treasury
+            let treasury = self.treasury.read();
+            if penalty_amount > 0 {
+                collateral_token.transfer(treasury, penalty_amount);
             }
-            // else: JIT liquidation or redistribution would go here (simplified for now)
+
+            // SP absorbs liquidation (burns moonUSD, credits collateral gains)
+            sp.absorb_liquidation(debt, collateral_type, collateral_for_sp);
 
             // Burn NFT
             let nft = IPositionNFTDispatcher { contract_address: self.position_nft.read() };

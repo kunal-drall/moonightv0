@@ -13,8 +13,8 @@
  *   DEPLOYER_PRIVATE_KEY=0x... DEPLOYER_ADDRESS=0x... npx tsx scripts/wire-permissions.ts
  */
 
-import { RpcProvider, Account, Contract, CallData } from "starknet";
-import { readFileSync } from "fs";
+import { RpcProvider, Account, Contract, CallData, uint256 } from "starknet";
+import { readFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
@@ -45,6 +45,15 @@ const addresses = {
   protocolConfig: deployment.contracts.ProtocolConfig.address,
   cdpManager: deployment.contracts.CDPManager.address,
 };
+
+// Load MockWBTC address
+const mockWbtcPath = join(__dirname, "..", "deployments", "mock-wbtc-sepolia.json");
+if (!existsSync(mockWbtcPath)) {
+  console.error("MockWBTC not deployed. Run deploy-mock-wbtc.ts first.");
+  process.exit(1);
+}
+const mockWbtcDeployment = JSON.parse(readFileSync(mockWbtcPath, "utf-8"));
+const MOCK_WBTC_ADDRESS = mockWbtcDeployment.address;
 
 // Pragma Oracle on Sepolia
 const PRAGMA_ORACLE_SEPOLIA =
@@ -152,6 +161,30 @@ async function main() {
     calldata: CallData.compile({ staleness: 3600 }),
   });
 
+  // 11. CDPManager: add WBTC collateral type (80% LTV = 8000 bps, 10% penalty = 1000 bps)
+  console.log(`11. CDPManager → add_collateral_type WBTC (${MOCK_WBTC_ADDRESS})`);
+  calls.push({
+    contractAddress: addresses.cdpManager,
+    entrypoint: "add_collateral_type",
+    calldata: CallData.compile({
+      key: "WBTC",
+      token: MOCK_WBTC_ADDRESS,
+      ltv_max: uint256.bnToUint256(8000n),
+      liq_penalty: uint256.bnToUint256(1000n),
+    }),
+  });
+
+  // 12. StabilityPool: set WBTC collateral token
+  console.log(`12. StabilityPool → set_collateral_token WBTC (${MOCK_WBTC_ADDRESS})`);
+  calls.push({
+    contractAddress: addresses.stabilityPool,
+    entrypoint: "set_collateral_token",
+    calldata: CallData.compile({
+      key: "WBTC",
+      token: MOCK_WBTC_ADDRESS,
+    }),
+  });
+
   console.log("");
   console.log(`Executing ${calls.length} calls in multicall...`);
 
@@ -172,6 +205,8 @@ async function main() {
     console.log("  - PriceOracle pragma: Sepolia Pragma Oracle");
     console.log("  - PriceOracle WBTC key: BTC/USD");
     console.log("  - PriceOracle staleness: 3600s");
+    console.log(`  - CDPManager collateral: WBTC → ${MOCK_WBTC_ADDRESS} (80% LTV, 10% penalty)`);
+    console.log(`  - StabilityPool collateral: WBTC → ${MOCK_WBTC_ADDRESS}`);
   } catch (error: any) {
     console.error("Failed to execute multicall:", error.message || error);
     // Try individual calls as fallback
